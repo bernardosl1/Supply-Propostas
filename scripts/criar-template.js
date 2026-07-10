@@ -103,9 +103,9 @@ function escapeXml(value) {
 }
 
 function priceTableXml() {
-  const columns = [560, 900, 3000, 850, 650, 580, 1200, 1220];
+  const columns = [650, 3800, 950, 720, 650, 1300, 1290];
   const tableWidth = columns.reduce((sum, item) => sum + item, 0);
-  const headerOptions = { size: 14, align: 'center', line: 180 };
+  const headerOptions = { size: 16, align: 'center', line: 220 };
   const itemOptions = { size: 16 };
   const sectionOptions = { bold: true, size: 16 };
   const totalLabelOptions = { size: 16, align: 'right' };
@@ -118,7 +118,7 @@ function priceTableXml() {
   const headerBorders = `<w:tcBorders><w:top w:val="single" w:sz="6" w:space="0" w:color="${darkLine}"/><w:left w:val="single" w:sz="4" w:space="0" w:color="7F7F7F"/><w:bottom w:val="single" w:sz="6" w:space="0" w:color="${darkLine}"/><w:right w:val="single" w:sz="4" w:space="0" w:color="7F7F7F"/></w:tcBorders>`;
   const totalBorders = `<w:tcBorders><w:top w:val="single" w:sz="4" w:space="0" w:color="${lineColor}"/><w:left w:val="nil"/><w:bottom w:val="nil"/><w:right w:val="nil"/></w:tcBorders>`;
   const boxBorders = '<w:tcBorders><w:top w:val="single" w:sz="6" w:space="0" w:color="404040"/><w:left w:val="single" w:sz="6" w:space="0" w:color="404040"/><w:bottom w:val="single" w:sz="6" w:space="0" w:color="404040"/><w:right w:val="single" w:sz="6" w:space="0" w:color="404040"/></w:tcBorders>';
-  const noMargins = '<w:tcMar><w:top w:w="8" w:type="dxa"/><w:left w:w="60" w:type="dxa"/><w:bottom w:w="8" w:type="dxa"/><w:right w:w="60" w:type="dxa"/></w:tcMar>';
+  const noMargins = '<w:tcMar><w:top w:w="16" w:type="dxa"/><w:left w:w="70" w:type="dxa"/><w:bottom w:w="16" w:type="dxa"/><w:right w:w="70" w:type="dxa"/></w:tcMar>';
 
   const tableOpen = (borders = false) => `
 <w:tbl>
@@ -138,38 +138,36 @@ function priceTableXml() {
 
   const header = tr([
     tc(p('ITEM', headerOptions), columns[0], { fill: grayFill, borders: headerBorders, margins: noMargins }),
-    tc(p('C\u00d3DIGO', headerOptions), columns[1], { fill: grayFill, borders: headerBorders, margins: noMargins }),
-    tc(p('DESCRI\u00c7\u00c3O DOS ITENS', headerOptions), columns[2], { fill: grayFill, borders: headerBorders, margins: noMargins }),
-    tc(p('NCM', headerOptions), columns[3], { fill: grayFill, borders: headerBorders, margins: noMargins }),
-    tc(p('QTD', headerOptions), columns[4], { fill: grayFill, borders: headerBorders, margins: noMargins }),
-    tc(p('UNID.', headerOptions), columns[5], { fill: grayFill, borders: headerBorders, margins: noMargins }),
-    tc(p('VALOR UNT.', headerOptions), columns[6], { fill: grayFill, borders: headerBorders, margins: noMargins }),
-    tc(p('VALOR TOTAL', headerOptions), columns[7], { fill: grayFill, borders: headerBorders, margins: noMargins })
+    tc(p('DESCRI\u00c7\u00c3O DOS ITENS', headerOptions), columns[1], { fill: grayFill, borders: headerBorders, margins: noMargins }),
+    tc(p('NCM', headerOptions), columns[2], { fill: grayFill, borders: headerBorders, margins: noMargins }),
+    tc(p('QTD', headerOptions), columns[3], { fill: grayFill, borders: headerBorders, margins: noMargins }),
+    tc(p('UNID.', headerOptions), columns[4], { fill: grayFill, borders: headerBorders, margins: noMargins }),
+    tc(p('VALOR UNIT\u00c1RIO', headerOptions), columns[5], { fill: grayFill, borders: headerBorders, margins: noMargins }),
+    tc(p('VALOR TOTAL', headerOptions), columns[6], { fill: grayFill, borders: headerBorders, margins: noMargins })
   ]);
 
   const section = () => tr([
-    tc(p('{#topicos_preco}{titulo}', sectionOptions), tableWidth, { gridSpan: 8, borders: noBorder })
+    tc(p('{#topicos_preco}{titulo}', sectionOptions), tableWidth, { gridSpan: 7, borders: noBorder })
   ]);
 
   const itemRow = () => tr([
     tc(p('{#itens}{item}', { ...itemOptions, bold: true }), columns[0], { borders: rowBottom }),
-    tc(p('{codigo}', { ...itemOptions, bold: true }), columns[1], { borders: rowBottom }),
-    tc(p('{descricao}', { ...itemOptions, bold: true }), columns[2], { borders: rowBottom }),
-    tc(p('{ncm}', { ...itemOptions, bold: true, align: 'center' }), columns[3], { borders: rowBottom }),
-    tc(p('{quant}', { ...itemOptions, bold: true, align: 'right' }), columns[4], { borders: rowBottom }),
-    tc(p('{un}', { ...itemOptions, bold: true, align: 'center' }), columns[5], { borders: rowBottom }),
-    tc(p('{valor_unit}', { ...itemOptions, bold: true, align: 'right' }), columns[6], { borders: rowBottom }),
-    tc(p('{valor_total}{/itens}', { ...itemOptions, bold: true, align: 'right' }), columns[7], { borders: rowBottom })
+    tc(p('{codigo_descricao}', { ...itemOptions, bold: true }), columns[1], { borders: rowBottom }),
+    tc(p('{ncm}', { ...itemOptions, bold: true, align: 'center' }), columns[2], { borders: rowBottom }),
+    tc(p('{quant}', { ...itemOptions, bold: true, align: 'right' }), columns[3], { borders: rowBottom }),
+    tc(p('{un}', { ...itemOptions, bold: true, align: 'center' }), columns[4], { borders: rowBottom }),
+    tc(p('{valor_unit}', { ...itemOptions, bold: true, align: 'right' }), columns[5], { borders: rowBottom }),
+    tc(p('{valor_total}{/itens}', { ...itemOptions, bold: true, align: 'right' }), columns[6], { borders: rowBottom })
   ]);
 
   const totalRow = () => tr([
-    tc(p('TOTAL {titulo} :', totalLabelOptions), columns.slice(0, 7).reduce((sum, item) => sum + item, 0), { gridSpan: 7, borders: totalBorders }),
-    tc(p('{total}{/topicos_preco}', totalValueOptions), columns[7], { borders: totalBorders })
+    tc(p('TOTAL {titulo} :', totalLabelOptions), columns.slice(0, 6).reduce((sum, item) => sum + item, 0), { gridSpan: 6, borders: totalBorders }),
+    tc(p('{total}{/topicos_preco}', totalValueOptions), columns[6], { borders: totalBorders })
   ]);
 
   const grandTotal = tr([
-    tc(p('PRE\u00c7O TOTAL', { bold: true, size: 16, align: 'center' }), columns[0] + columns[1] + columns[2], { fill: grayFill, gridSpan: 3, borders: boxBorders }),
-    tc(p('{preco_total_numero} ({preco_total_extenso})', { bold: true, size: 16, align: 'center' }), columns.slice(3).reduce((sum, item) => sum + item, 0), { fill: grayFill, gridSpan: 5, borders: boxBorders })
+    tc(p('PRE\u00c7O TOTAL', { bold: true, size: 16, align: 'center' }), columns[0] + columns[1], { fill: grayFill, gridSpan: 2, borders: boxBorders }),
+    tc(p('{preco_total_numero} ({preco_total_extenso})', { bold: true, size: 16, align: 'center' }), columns.slice(2).reduce((sum, item) => sum + item, 0), { fill: grayFill, gridSpan: 5, borders: boxBorders })
   ]);
 
   const termsColumns = [4580, 4580];

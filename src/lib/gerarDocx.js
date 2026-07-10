@@ -29,15 +29,10 @@ function normalizeItems(items = []) {
     const total = item.valor_total == null || item.valor_total === ''
       ? quant * valorUnit
       : Number(item.valor_total || 0);
-    const codigoDescricao = [item.codigo, item.descricao]
-      .map((value) => String(value || '').trim())
-      .filter(Boolean)
-      .join(' ');
 
     return {
       ...item,
       codigo: item.codigo || '',
-      codigo_descricao: codigoDescricao,
       quant: String(item.quant ?? ''),
       valor_unit: formatNumber(valorUnit),
       valor_total: formatNumber(total)

@@ -65,7 +65,8 @@ function p(text, options = {}) {
   const bold = options.bold ? '<w:b/>' : '';
   const color = options.color ? `<w:color w:val="${options.color}"/>` : '';
   const align = options.align ? `<w:jc w:val="${options.align}"/>` : '';
-  const spacing = options.spacing === false ? '' : '<w:spacing w:after="0" w:line="240" w:lineRule="auto"/>';
+  const line = options.line || 240;
+  const spacing = options.spacing === false ? '' : `<w:spacing w:after="0" w:line="${line}" w:lineRule="auto"/>`;
   const escaped = escapeXml(text);
   const xmlSpace = /^\s|\s$/.test(text) ? ' xml:space="preserve"' : '';
 
@@ -104,7 +105,7 @@ function escapeXml(value) {
 function priceTableXml() {
   const columns = [560, 900, 3000, 850, 650, 580, 1200, 1220];
   const tableWidth = columns.reduce((sum, item) => sum + item, 0);
-  const headerOptions = { size: 16, align: 'center' };
+  const headerOptions = { size: 14, align: 'center', line: 180 };
   const itemOptions = { size: 16 };
   const sectionOptions = { bold: true, size: 16 };
   const totalLabelOptions = { size: 16, align: 'right' };
@@ -117,7 +118,7 @@ function priceTableXml() {
   const headerBorders = `<w:tcBorders><w:top w:val="single" w:sz="6" w:space="0" w:color="${darkLine}"/><w:left w:val="single" w:sz="4" w:space="0" w:color="7F7F7F"/><w:bottom w:val="single" w:sz="6" w:space="0" w:color="${darkLine}"/><w:right w:val="single" w:sz="4" w:space="0" w:color="7F7F7F"/></w:tcBorders>`;
   const totalBorders = `<w:tcBorders><w:top w:val="single" w:sz="4" w:space="0" w:color="${lineColor}"/><w:left w:val="nil"/><w:bottom w:val="nil"/><w:right w:val="nil"/></w:tcBorders>`;
   const boxBorders = '<w:tcBorders><w:top w:val="single" w:sz="6" w:space="0" w:color="404040"/><w:left w:val="single" w:sz="6" w:space="0" w:color="404040"/><w:bottom w:val="single" w:sz="6" w:space="0" w:color="404040"/><w:right w:val="single" w:sz="6" w:space="0" w:color="404040"/></w:tcBorders>';
-  const noMargins = '<w:tcMar><w:top w:w="20" w:type="dxa"/><w:left w:w="70" w:type="dxa"/><w:bottom w:w="20" w:type="dxa"/><w:right w:w="70" w:type="dxa"/></w:tcMar>';
+  const noMargins = '<w:tcMar><w:top w:w="8" w:type="dxa"/><w:left w:w="60" w:type="dxa"/><w:bottom w:w="8" w:type="dxa"/><w:right w:w="60" w:type="dxa"/></w:tcMar>';
 
   const tableOpen = (borders = false) => `
 <w:tbl>
@@ -142,7 +143,7 @@ function priceTableXml() {
     tc(p('NCM', headerOptions), columns[3], { fill: grayFill, borders: headerBorders, margins: noMargins }),
     tc(p('QTD', headerOptions), columns[4], { fill: grayFill, borders: headerBorders, margins: noMargins }),
     tc(p('UNID.', headerOptions), columns[5], { fill: grayFill, borders: headerBorders, margins: noMargins }),
-    tc(p('VALOR UNITÁRIO', headerOptions), columns[6], { fill: grayFill, borders: headerBorders, margins: noMargins }),
+    tc(p('VALOR UNT.', headerOptions), columns[6], { fill: grayFill, borders: headerBorders, margins: noMargins }),
     tc(p('VALOR TOTAL', headerOptions), columns[7], { fill: grayFill, borders: headerBorders, margins: noMargins })
   ]);
 

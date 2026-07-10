@@ -1,0 +1,8 @@
+node_modules/
+dist/
+propostas/
+.work/
+electron-test.txt
+layout-preco-teste.docx
+config/supabase.json
+*.log

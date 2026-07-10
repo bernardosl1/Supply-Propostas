@@ -1,0 +1,86 @@
+{
+  "name": "proposta-app",
+  "version": "1.0.0",
+  "description": "Gerador local de propostas comerciais da Supply Marine.",
+  "main": "main.js",
+  "scripts": {
+    "start": "node scripts/run-electron.js",
+    "smoke": "node scripts/run-electron.js --smoke",
+    "smoke:generate": "node scripts/run-electron.js --smoke-generate",
+    "smoke:pdf": "node scripts/run-electron.js --smoke-pdf",
+    "smoke:invalid": "node scripts/run-electron.js --smoke-invalid",
+    "template": "node scripts/criar-template.js",
+    "test:docx": "node src/lib/gerarDocx.js scripts/dados-teste.json",
+    "test:pdf": "node src/lib/gerarPdf.js propostas/20260200-teste.docx",
+    "test:docx-import": "node scripts/testar-docx-import.js",
+    "test:history": "node scripts/testar-historico.js",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder --win nsis portable",
+    "dist:installer": "electron-builder --win nsis",
+    "dist:portable": "electron-builder --win portable"
+  },
+  "keywords": [],
+  "author": "Supply Marine",
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bernardosl1/Supply-Propostas.git"
+  },
+  "type": "commonjs",
+  "build": {
+    "appId": "br.com.supplymarine.propostas",
+    "productName": "Supply Marine Propostas",
+    "artifactName": "Supply-Marine-Propostas-Setup-${version}.${ext}",
+    "directories": {
+      "output": "dist"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "bernardosl1",
+        "repo": "Supply-Propostas",
+        "releaseType": "release"
+      }
+    ],
+    "files": [
+      "main.js",
+      "preload.js",
+      "package.json",
+      "src/**/*",
+      "assets/**/*",
+      "config/**/*"
+    ],
+    "win": {
+      "icon": "assets/logo.ico",
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Supply Marine Propostas"
+    },
+    "portable": {
+      "artifactName": "Supply-Marine-Propostas-Portable-${version}.${ext}"
+    }
+  },
+  "devDependencies": {
+    "electron": "43.0.0",
+    "electron-builder": "^26.15.3"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.110.2",
+    "@xmldom/xmldom": "^0.9.10",
+    "docxtemplater": "^3.69.0",
+    "electron-updater": "^6.8.9",
+    "pizzip": "^3.2.0"
+  },
+  "overrides": {
+    "uuid": "11.1.1"
+  }
+}

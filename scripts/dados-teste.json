@@ -1,0 +1,74 @@
+{
+  "empresa_cliente": "Oceânica Engenharia E Consultoria Ltda",
+  "unidade": "Oceânica Sub VIII",
+  "processo_fluig": "Fluig 626498",
+  "solicitante_nome_cargo": "Daniel Alves Fernandes | Supervisor de Manutenção Naval",
+  "contato_email": "daniel.fernandes@oceanica.com.br",
+  "contato_telefone": "(+55 21) 2139-4250",
+  "numero_documento": "20260200",
+  "data_documento": "20/03/2026",
+  "responsavel_nome": "André Luis Souza",
+  "responsavel_email": "alsouza@supplymarine.com.br",
+  "responsavel_telefone": "(+55 21) 2596-6262",
+  "objeto": "Manutenção do ar-condicionado de BB & BE",
+  "servicos_descricao": [
+    "Instalação do compressor do ar-condicionado A2 de BB junto com a VC serviços marítimos.",
+    "Verificação da tubulação do compressor B1 de BE com vazamento junto com a VC serviços marítimos."
+  ],
+  "equipe_tecnica": "01 (um) Técnico HVAC-R | 01 (um) Assistente Técnico.",
+  "local_servico": "Maceió | AL",
+  "data_servico": "13/03/2026",
+  "itens_servico": [
+    {
+      "item": "0001",
+      "descricao": "Técnico HVAC-R",
+      "ncm": "-----",
+      "quant": 15,
+      "un": "HH",
+      "valor_unit": 310
+    },
+    {
+      "item": "0002",
+      "descricao": "Assistente Técnico",
+      "ncm": "-----",
+      "quant": 15,
+      "un": "HH",
+      "valor_unit": 215
+    },
+    {
+      "item": "0003",
+      "descricao": "Técnico HVAC-R | HE50%",
+      "ncm": "-----",
+      "quant": 12.5,
+      "un": "HH",
+      "valor_unit": 465
+    },
+    {
+      "item": "0004",
+      "descricao": "Assistente Técnico | HE50%",
+      "ncm": "-----",
+      "quant": 12.5,
+      "un": "HH",
+      "valor_unit": 322.5
+    }
+  ],
+  "itens_consumiveis": [
+    {
+      "item": "0003",
+      "descricao": "Elemento filtrante 48DC",
+      "ncm": "84213990",
+      "quant": 8,
+      "un": "PC",
+      "valor_unit": 203
+    }
+  ],
+  "preco_total_numero": 19342.75,
+  "preco_total_extenso": "Dezenove mil trezentos e quarenta e dois reais e setenta e cinco centavos",
+  "moeda": "Real R$",
+  "validade_proposta": "20/04/2026",
+  "pagamento": "30 dias",
+  "prazo_entrega": "Conforme item 5.1",
+  "frete": "FOB | Rio de Janeiro (RJ)",
+  "impostos": "inclusos no preço",
+  "prazo_execucao_dias": "03 (três) dias"
+}

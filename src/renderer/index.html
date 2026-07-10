@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supply Marine - Propostas</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <aside class="sidebar" aria-label="Navegação principal">
+        <div class="brand">
+          <span class="brand-mark"><img src="../../assets/logo.ico" alt=""></span>
+          <div>
+            <strong>Supply Marine</strong>
+            <span>Propostas comerciais</span>
+          </div>
+        </div>
+
+        <nav class="nav-list" aria-label="Seções">
+          <button class="nav-link active" type="button" data-view-button="home">
+            <span class="nav-icon home-icon"></span>
+            <span>Pagina Inicial</span>
+          </button>
+          <button class="nav-link" type="button" data-view-button="form">
+            <span class="nav-icon file-icon"></span>
+            <span>Nova Proposta</span>
+          </button>
+        </nav>
+
+        <div class="sidebar-note">
+          <span class="status-dot"></span>
+          <span>App local pronto.</span>
+        </div>
+      </aside>
+
+      <section class="workspace">
+        <section class="view active" id="home-view" aria-labelledby="home-title">
+          <header class="topbar">
+            <div>
+              <p class="eyebrow">Gerador de propostas</p>
+              <h1 id="home-title">Propostas comerciais</h1>
+            </div>
+          </header>
+
+          <section class="summary-row" aria-label="Resumo">
+            <div>
+              <span class="summary-label">Salvas no histórico</span>
+              <strong id="summary-count">0</strong>
+            </div>
+            <div>
+              <span class="summary-label">Última proposta</span>
+              <strong id="summary-last">Nenhuma</strong>
+            </div>
+            <div>
+              <span class="summary-label">Pasta local</span>
+              <strong>propostas/</strong>
+            </div>
+          </section>
+
+          <section class="proposals-area" aria-labelledby="lista-propostas">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Histórico local</p>
+                <h2 id="lista-propostas">Propostas salvas</h2>
+              </div>
+              <label class="search">
+                <span>Buscar</span>
+                <input id="history-search" type="search" placeholder="Cliente ou número">
+              </label>
+            </div>
+
+            <div class="proposal-table" role="table" aria-label="Lista de propostas">
+              <div class="proposal-row proposal-head" role="row">
+                <span role="columnheader">Número</span>
+                <span role="columnheader">Cliente</span>
+                <span role="columnheader">Data</span>
+                <span role="columnheader">Valor</span>
+                <span role="columnheader">Ações</span>
+              </div>
+              <div class="empty-state" id="empty-state" role="row">
+                <div>
+                  <strong>Nenhuma proposta gerada ainda.</strong>
+                  <p>Use Nova Proposta para criar o primeiro documento.</p>
+                </div>
+              </div>
+              <div id="proposal-list"></div>
+            </div>
+          </section>
+        </section>
+
+        <section class="view" id="form-view" aria-labelledby="form-title">
+          <header class="topbar sticky-topbar">
+            <div>
+              <p class="eyebrow">Nova proposta</p>
+              <h1 id="form-title">Formulário da proposta</h1>
+            </div>
+            <div class="toolbar">
+              <button class="secondary-action" type="button" data-view-button="home">Voltar</button>
+              <button class="primary-action" form="proposal-form" type="submit">Gerar Proposta</button>
+            </div>
+          </header>
+
+          <form id="proposal-form" class="proposal-form" novalidate>
+            <div class="form-alert" id="form-alert" hidden></div>
+
+            <section class="form-section" id="proposal-import">
+              <div class="section-heading import-heading">
+                <div>
+                  <p class="eyebrow">Importar proposta</p>
+                  <h2>Autopreencher por DOCX</h2>
+                </div>
+                <div class="import-control">
+                  <button class="secondary-action" type="button" id="select-docx">Selecionar .docx</button>
+                  <span id="docx-status">Nenhum arquivo selecionado.</span>
+                </div>
+              </div>
+            </section>
+
+            <section class="form-section">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">1. Dados comerciais</p>
+                  <h2>Cliente e documento</h2>
+                </div>
+              </div>
+              <div class="field-grid four-cols">
+                <label>Empresa cliente<input name="empresa_cliente" required></label>
+                <label>Unidade<input name="unidade"></label>
+                <label>Processo Fluig<input name="processo_fluig"></label>
+                <label>Número do documento<input name="numero_documento" required></label>
+                <label class="wide">Solicitante / cargo<input name="solicitante_nome_cargo"></label>
+                <label>E-mail do contato<input name="contato_email" type="email"></label>
+                <label>Telefone do contato<input name="contato_telefone"></label>
+                <label>Data do documento<input name="data_documento" placeholder="dd/mm/aaaa"></label>
+                <label>Responsável<input name="responsavel_nome"></label>
+                <label>E-mail do responsável<input name="responsavel_email"></label>
+                <label>Telefone do responsável<input name="responsavel_telefone"></label>
+              </div>
+            </section>
+
+            <section class="form-section">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">2. Objeto e escopo</p>
+                  <h2>Serviço</h2>
+                </div>
+              </div>
+              <div class="field-grid">
+                <label class="full">Objeto<textarea name="objeto" rows="2" required></textarea></label>
+                <label>Equipe técnica<input name="equipe_tecnica"></label>
+                <label>Local do serviço<input name="local_servico"></label>
+                <label>Data do serviço<input name="data_servico" placeholder="dd/mm/aaaa"></label>
+              </div>
+
+              <div class="dynamic-block">
+                <div class="inline-heading">
+                  <strong>Descrição dos serviços</strong>
+                  <button class="small-action" type="button" data-add-service>Adicionar</button>
+                </div>
+                <div id="services-list" class="stack-list"></div>
+              </div>
+            </section>
+
+            <section class="form-section">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">3. Itens / preço</p>
+                  <h2>Serviços e consumíveis</h2>
+                </div>
+                <div class="price-actions">
+                  <button class="small-action" type="button" data-add-price-topic>Adicionar t&oacute;pico</button>
+                  <div class="total-box">
+                    <span>Total</span>
+                    <strong id="grand-total">R$ 0,00</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div id="price-topics" class="price-topics"></div>
+
+              <div class="field-grid four-cols">
+                <label>Preço total<input name="preco_total_numero" data-money></label>
+                <label class="wide">Preço por extenso<input name="preco_total_extenso"></label>
+                <label>Moeda<input name="moeda" value="Real R$"></label>
+                <label>Validade da proposta<input name="validade_proposta" placeholder="dd/mm/aaaa"></label>
+                <label>Pagamento<input name="pagamento" placeholder="30 dias"></label>
+                <label>Prazo de entrega<input name="prazo_entrega" placeholder="Conforme item 5.1"></label>
+                <label>Frete<input name="frete" placeholder="FOB | Rio de Janeiro (RJ)"></label>
+                <label>Impostos<input name="impostos" value="inclusos no preço"></label>
+              </div>
+            </section>
+
+            <section class="form-section">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">4. Informações adicionais</p>
+                  <h2>Prazo de execução</h2>
+                </div>
+              </div>
+              <div class="field-grid">
+                <label>Prazo de execução<input name="prazo_execucao_dias" placeholder="03 (três) dias"></label>
+              </div>
+            </section>
+
+            <section class="result-panel" id="result-panel" hidden>
+              <div>
+                <p class="eyebrow">Documento gerado</p>
+                <h2 id="result-title">Proposta pronta</h2>
+                <p id="result-path"></p>
+                <p id="pdf-status"></p>
+              </div>
+              <div class="toolbar">
+                <button class="secondary-action" type="button" id="export-pdf">Exportar PDF</button>
+                <button class="secondary-action" type="button" id="open-docx">Abrir no Word</button>
+              </div>
+            </section>
+          </form>
+        </section>
+      </section>
+    </main>
+
+    <script src="./renderer.js"></script>
+  </body>
+</html>

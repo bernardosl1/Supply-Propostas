@@ -32,6 +32,7 @@ function normalizeItems(items = []) {
 
     return {
       ...item,
+      codigo: item.codigo || '',
       quant: String(item.quant ?? ''),
       valor_unit: formatNumber(valorUnit),
       valor_total: formatNumber(total)

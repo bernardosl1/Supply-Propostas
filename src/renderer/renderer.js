@@ -223,6 +223,7 @@ function addItem(topicElement, values = {}) {
   row.dataset.itemType = topicElement.dataset.topicType || 'personalizado';
   row.innerHTML = `
     <input data-field="item" value="${escapeHtml(values.item || nextItemCode())}">
+    <input data-field="codigo" value="${escapeHtml(values.codigo || '')}">
     <input data-field="descricao" value="${escapeHtml(values.descricao || '')}">
     <input data-field="ncm" value="${escapeHtml(values.ncm ?? topicElement.dataset.defaultNcm ?? '')}">
     <input data-field="quant" type="text" inputmode="decimal" value="${escapeHtml(values.quant ?? 1)}">
@@ -286,6 +287,7 @@ function createItemHeader() {
   header.className = 'item-head';
   header.innerHTML = `
     <span>Item</span>
+    <span>C&oacute;digo</span>
     <span>Descrição</span>
     <span>NCM</span>
     <span>Quant</span>
@@ -479,13 +481,14 @@ function collectPriceTopics() {
 function collectItems(container) {
   return Array.from(container.querySelectorAll('.item-row')).map((row) => ({
     item: readRowField(row, 'item'),
+    codigo: readRowField(row, 'codigo'),
     descricao: readRowField(row, 'descricao'),
     ncm: readRowField(row, 'ncm'),
     quant: readNumber(readRowField(row, 'quant')),
     un: readRowField(row, 'un'),
     valor_unit: readNumber(readRowField(row, 'valor_unit')),
     valor_total: readNumber(readRowField(row, 'valor_total'))
-  })).filter((item) => item.descricao || item.valor_unit || item.valor_total);
+  })).filter((item) => item.codigo || item.descricao || item.valor_unit || item.valor_total);
 }
 
 function readRowField(row, field) {

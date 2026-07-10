@@ -613,7 +613,7 @@ textarea.invalid {
 .item-row,
 .item-head {
   display: grid;
-  grid-template-columns: 72px minmax(180px, 1.8fr) 108px 82px 70px 118px 118px 34px;
+  grid-template-columns: 72px 112px minmax(180px, 1.8fr) 108px 82px 70px 118px 118px 34px;
   gap: 8px;
   align-items: center;
 }
@@ -715,7 +715,7 @@ select {
 
   .item-row,
   .item-head {
-    grid-template-columns: 70px minmax(160px, 1.5fr) 96px 76px 64px 104px 104px 34px;
+    grid-template-columns: 70px 96px minmax(160px, 1.5fr) 96px 76px 64px 104px 104px 34px;
   }
 
   .topic-heading {

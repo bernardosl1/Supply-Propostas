@@ -425,7 +425,7 @@ h2 {
 
 .proposal-row {
   display: grid;
-  grid-template-columns: 0.9fr 1.6fr 0.9fr 0.9fr 2.4fr;
+  grid-template-columns: 0.9fr 1.25fr 1.25fr 0.85fr 0.9fr 2.4fr;
   min-height: 46px;
   align-items: center;
   gap: 16px;
@@ -491,6 +491,10 @@ h2 {
 
 .four-cols {
   grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.two-cols {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 label {
@@ -589,8 +593,11 @@ textarea.invalid {
   background: #fbfcfd;
 }
 
-.inline-heading strong {
-  font-size: 15px;
+.inline-heading .field-label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
 }
 
 .stack-list {
@@ -604,6 +611,31 @@ textarea.invalid {
   gap: 8px;
 }
 
+.additional-info-list {
+  display: grid;
+  gap: 8px;
+}
+
+.additional-info-row {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) 34px;
+  gap: 8px;
+  align-items: start;
+}
+
+.additional-info-number {
+  padding-top: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.additional-info-row textarea {
+  min-height: 38px;
+  padding: 9px 10px;
+}
+
 .item-table {
   display: grid;
   gap: 8px;
@@ -613,7 +645,7 @@ textarea.invalid {
 .item-row,
 .item-head {
   display: grid;
-  grid-template-columns: 72px 112px minmax(180px, 1.8fr) 108px 82px 70px 118px 118px 34px;
+  grid-template-columns: 72px minmax(260px, 2.2fr) 108px 82px 70px 118px 118px 34px;
   gap: 8px;
   align-items: center;
 }
@@ -715,7 +747,7 @@ select {
 
   .item-row,
   .item-head {
-    grid-template-columns: 70px 96px minmax(160px, 1.5fr) 96px 76px 64px 104px 104px 34px;
+    grid-template-columns: 70px minmax(230px, 1.8fr) 96px 76px 64px 104px 104px 34px;
   }
 
   .topic-heading {

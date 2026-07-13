@@ -1,6 +1,6 @@
 {
   "name": "proposta-app",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Gerador local de propostas comerciais da Supply Marine.",
   "main": "main.js",
   "scripts": {
@@ -10,6 +10,9 @@
     "smoke:pdf": "node scripts/run-electron.js --smoke-pdf",
     "smoke:invalid": "node scripts/run-electron.js --smoke-invalid",
     "template": "node scripts/criar-template.js",
+    "template:backup": "node scripts/criar-template.js --backup",
+    "template:ajustar-informacoes": "node scripts/criar-template.js --ajustar-informacoes",
+    "template:recriar": "node scripts/criar-template.js --recriar",
     "test:docx": "node src/lib/gerarDocx.js scripts/dados-teste.json",
     "test:pdf": "node src/lib/gerarPdf.js propostas/20260200-teste.docx",
     "test:docx-import": "node scripts/testar-docx-import.js",

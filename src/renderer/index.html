@@ -74,6 +74,7 @@
               <div class="proposal-row proposal-head" role="row">
                 <span role="columnheader">Número</span>
                 <span role="columnheader">Cliente</span>
+                <span role="columnheader">Unidade</span>
                 <span role="columnheader">Data</span>
                 <span role="columnheader">Valor</span>
                 <span role="columnheader">Ações</span>
@@ -127,7 +128,7 @@
               <div class="field-grid four-cols">
                 <label>Empresa cliente<input name="empresa_cliente" required></label>
                 <label>Unidade<input name="unidade"></label>
-                <label>Processo Fluig<input name="processo_fluig"></label>
+                <label>Solicitação N°<input name="processo_fluig"></label>
                 <label>Número do documento<input name="numero_documento" required></label>
                 <label class="wide">Solicitante / cargo<input name="solicitante_nome_cargo"></label>
                 <label>E-mail do contato<input name="contato_email" type="email"></label>
@@ -142,30 +143,47 @@
             <section class="form-section">
               <div class="section-heading">
                 <div>
-                  <p class="eyebrow">2. Objeto e escopo</p>
-                  <h2>Serviço</h2>
+                  <p class="eyebrow">2. Objeto</p>
                 </div>
               </div>
               <div class="field-grid">
-                <label class="full">Objeto<textarea name="objeto" rows="2" required></textarea></label>
-                <label>Equipe técnica<input name="equipe_tecnica"></label>
-                <label>Local do serviço<input name="local_servico"></label>
-                <label>Data do serviço<input name="data_servico" placeholder="dd/mm/aaaa"></label>
-              </div>
-
-              <div class="dynamic-block">
-                <div class="inline-heading">
-                  <strong>Descrição dos serviços</strong>
-                  <button class="small-action" type="button" data-add-service>Adicionar</button>
-                </div>
-                <div id="services-list" class="stack-list"></div>
+                <label class="full">Serviço<textarea name="objeto" rows="2" required></textarea></label>
               </div>
             </section>
 
             <section class="form-section">
               <div class="section-heading">
                 <div>
-                  <p class="eyebrow">3. Itens / preço</p>
+                  <p class="eyebrow">3. Escopo de fornecimento</p>
+                </div>
+              </div>
+
+              <div class="dynamic-block">
+                <div class="inline-heading">
+                  <span class="field-label">3.1 Descrição dos serviços</span>
+                  <button class="small-action" type="button" data-add-service>Adicionar</button>
+                </div>
+                <div id="services-list" class="stack-list"></div>
+              </div>
+
+              <div class="dynamic-block">
+                <div class="inline-heading">
+                  <span class="field-label">3.2 Equipe técnica</span>
+                  <button class="small-action" type="button" data-add-technical-team>Adicionar</button>
+                </div>
+                <div id="technical-team-list" class="stack-list"></div>
+              </div>
+
+              <div class="field-grid two-cols">
+                <label>3.3 Local do serviço<input name="local_servico"></label>
+                <label>3.3 Data do serviço<input name="data_servico" placeholder="dd/mm/aaaa"></label>
+              </div>
+            </section>
+
+            <section class="form-section">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">4. Itens / preço</p>
                   <h2>Serviços e consumíveis</h2>
                 </div>
                 <div class="price-actions">
@@ -194,12 +212,24 @@
             <section class="form-section">
               <div class="section-heading">
                 <div>
-                  <p class="eyebrow">4. Informações adicionais</p>
-                  <h2>Prazo de execução</h2>
+                  <p class="eyebrow">5. Informações adicionais</p>
+                  <h2>Conteúdo do documento</h2>
                 </div>
               </div>
-              <div class="field-grid">
-                <label>Prazo de execução<input name="prazo_execucao_dias" placeholder="03 (três) dias"></label>
+
+              <div class="dynamic-block">
+                <div class="inline-heading">
+                  <span class="field-label">Itens fixos editáveis</span>
+                </div>
+                <div id="fixed-additional-info-list" class="additional-info-list"></div>
+              </div>
+
+              <div class="dynamic-block">
+                <div class="inline-heading">
+                  <span class="field-label">Outras informações adicionais</span>
+                  <button class="small-action" type="button" data-add-additional-info>Adicionar</button>
+                </div>
+                <div id="additional-info-list" class="stack-list"></div>
               </div>
             </section>
 

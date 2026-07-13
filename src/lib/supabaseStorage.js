@@ -245,6 +245,7 @@ function rowToProposal(row) {
     id: row.id,
     numero_documento: row.numero_documento || '',
     empresa_cliente: row.empresa_cliente || '',
+    unidade: row.data?.unidade || '',
     data_documento: row.data_documento || '',
     preco_total_numero: Number(row.preco_total_numero || 0),
     docxPath: row.docx_storage_path ? remotePath(bucket, row.docx_storage_path) : row.docx_path || '',

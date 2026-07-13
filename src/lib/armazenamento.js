@@ -45,6 +45,7 @@ function salvarProposta({ id, data, docxPath, pdfPath }) {
     id: previous.id || createId(),
     numero_documento: data.numero_documento || '',
     empresa_cliente: data.empresa_cliente || '',
+    unidade: data.unidade || '',
     data_documento: data.data_documento || '',
     preco_total_numero: Number(data.preco_total_numero || 0),
     docxPath: docxPath || previous.docxPath || '',

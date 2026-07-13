@@ -5,6 +5,21 @@ const Docxtemplater = require('docxtemplater');
 const { getPropostasDir } = require('./paths');
 
 const templatePath = path.resolve(__dirname, '..', 'templates', 'modelo_proposta.docx');
+const FIXED_ADDITIONAL_INFO = [
+  ['51', 'Prazo de Execução'],
+  ['511', 'Serviços: Estimados em 03 (três) dias, incluindo translado ida & volta Equipe;'],
+  ['512', 'Consumíveis/Materiais/Equipamentos: Imediato;'],
+  ['513', 'O prazo de Execução dos serviços pode ser alterado de acordo com as condições de execução dos mesmos;'],
+  ['514', 'Caso o prazo de execução seja diferente do mencionado, o valor total da presente proposta será alterado conforme as informações abaixo:'],
+  ['514a', 'De Segunda-feira a Sexta-feira das 17h30min até as 7h30min 50% adicional;'],
+  ['514b', 'Durante o Sábado 50% adicional o dia todo;'],
+  ['514c', 'Domingos e Feriados 100% adicional o dia todo;'],
+  ['514d', 'Diária Offshore quando o barco em operação ou fundeado e a equipe permanecer a bordo.'],
+  ['52', 'Caso haja a necessidade de substituição de algum componente não previsto nesta proposta o mesmo será objeto de orçamento aditivo.'],
+  ['53', 'Após o término do serviço será enviado uma medição, incluindo as horas de viagem, espera a bordo e a disposição, caso necessário.'],
+  ['54', 'Todas as despesas com deslocamento, alimentação e estadia da equipe, caso necessário, serão por conta do cliente;'],
+  ['55', 'Os Equipamentos e Ferramentas de propriedade da SUPPLY MARINE deverão ser devolvidos no prazo máximo de 03 (três) dias após a conclusão dos serviços. Caso contrário, a SUPPLY MARINE cobrará pelos custos de cessão dos mesmos conforme tabela abaixo:']
+];
 
 function formatCurrency(value) {
   const number = Number(value || 0);
@@ -89,10 +104,35 @@ function prepareData(data) {
   const totalConsumiveisNumber = sumItems(itensConsumiveis);
   const totalTopicosNumber = topicosPreco.reduce((sum, topic) => sum + sumItems(topic.itens), 0);
   const totalNumber = data.preco_total_numero || totalTopicosNumber;
+  const technicalTeamSource = Array.isArray(data.equipe_tecnica_itens) && data.equipe_tecnica_itens.length
+    ? data.equipe_tecnica_itens
+    : String(data.equipe_tecnica || '').split('|');
+  const technicalTeam = technicalTeamSource
+    .map((item) => (typeof item === 'string' ? item : item?.item))
+    .map((item) => String(item || '').trim())
+    .filter(Boolean);
+  const savedFixedInfo = data.informacoes_adicionais_fixas;
+  const hasSavedFixedInfo = savedFixedInfo && typeof savedFixedInfo === 'object' && !Array.isArray(savedFixedInfo);
+  const fixedInfoData = {};
+  FIXED_ADDITIONAL_INFO.forEach(([id, defaultText]) => {
+    let text = hasSavedFixedInfo ? savedFixedInfo[id] : defaultText;
+    if (!hasSavedFixedInfo && id === '511' && data.prazo_execucao_dias) {
+      text = defaultText.replace('03 (três) dias', String(data.prazo_execucao_dias));
+    }
+    text = String(text || '').trim();
+    fixedInfoData[`mostrar_info_${id}`] = Boolean(text);
+    fixedInfoData[`texto_info_${id}`] = text;
+  });
 
   return {
     ...data,
+    ...fixedInfoData,
     servicos_descricao: (data.servicos_descricao || []).map((item) => (
+      typeof item === 'string' ? { item } : item
+    )),
+    equipe_tecnica: technicalTeam.join(' | '),
+    equipe_tecnica_itens: technicalTeam.map((item) => ({ item })),
+    informacoes_adicionais: (data.informacoes_adicionais || []).map((item) => (
       typeof item === 'string' ? { item } : item
     )),
     topicos_preco: topicosPreco,

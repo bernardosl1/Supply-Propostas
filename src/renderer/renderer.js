@@ -18,6 +18,9 @@ const numberFormatter = new Intl.NumberFormat('pt-BR', {
 const versionTarget = document.querySelector('.sidebar-note span:last-child');
 const form = document.querySelector('#proposal-form');
 const servicesList = document.querySelector('#services-list');
+const technicalTeamList = document.querySelector('#technical-team-list');
+const fixedAdditionalInfoList = document.querySelector('#fixed-additional-info-list');
+const additionalInfoList = document.querySelector('#additional-info-list');
 const priceTopics = document.querySelector('#price-topics');
 const resultPanel = document.querySelector('#result-panel');
 const resultPath = document.querySelector('#result-path');
@@ -37,6 +40,22 @@ const docxStatus = document.querySelector('#docx-status');
 const DEFAULT_PRICE_TOPICS = [
   { tipo: 'servico', titulo: 'Itens de servi\u00e7o', ncm: '-----', un: 'HH' },
   { tipo: 'consumivel', titulo: 'Consum\u00edveis', ncm: '', un: 'PC' }
+];
+
+const DEFAULT_FIXED_ADDITIONAL_INFO = [
+  { id: '51', number: '5.1', text: 'Prazo de Execução' },
+  { id: '511', number: '5.1.1', text: 'Serviços: Estimados em 03 (três) dias, incluindo translado ida & volta Equipe;' },
+  { id: '512', number: '5.1.2', text: 'Consumíveis/Materiais/Equipamentos: Imediato;' },
+  { id: '513', number: '5.1.3', text: 'O prazo de Execução dos serviços pode ser alterado de acordo com as condições de execução dos mesmos;' },
+  { id: '514', number: '5.1.4', text: 'Caso o prazo de execução seja diferente do mencionado, o valor total da presente proposta será alterado conforme as informações abaixo:' },
+  { id: '514a', number: '•', text: 'De Segunda-feira a Sexta-feira das 17h30min até as 7h30min 50% adicional;' },
+  { id: '514b', number: '•', text: 'Durante o Sábado 50% adicional o dia todo;' },
+  { id: '514c', number: '•', text: 'Domingos e Feriados 100% adicional o dia todo;' },
+  { id: '514d', number: '•', text: 'Diária Offshore quando o barco em operação ou fundeado e a equipe permanecer a bordo.' },
+  { id: '52', number: '5.2', text: 'Caso haja a necessidade de substituição de algum componente não previsto nesta proposta o mesmo será objeto de orçamento aditivo.' },
+  { id: '53', number: '5.3', text: 'Após o término do serviço será enviado uma medição, incluindo as horas de viagem, espera a bordo e a disposição, caso necessário.' },
+  { id: '54', number: '5.4', text: 'Todas as despesas com deslocamento, alimentação e estadia da equipe, caso necessário, serão por conta do cliente;' },
+  { id: '55', number: '5.5', text: 'Os Equipamentos e Ferramentas de propriedade da SUPPLY MARINE deverão ser devolvidos no prazo máximo de 03 (três) dias após a conclusão dos serviços. Caso contrário, a SUPPLY MARINE cobrará pelos custos de cessão dos mesmos conforme tabela abaixo:' }
 ];
 
 init();
@@ -87,6 +106,8 @@ function showView(viewName) {
 
 function bindForm() {
   document.querySelector('[data-add-service]').addEventListener('click', () => addServiceDescription(''));
+  document.querySelector('[data-add-technical-team]').addEventListener('click', () => addTechnicalTeamMember(''));
+  document.querySelector('[data-add-additional-info]').addEventListener('click', () => addAdditionalInfo(''));
   document.querySelector('[data-add-price-topic]').addEventListener('click', () => addPriceTopic());
   form.addEventListener('input', recalculate);
   form.addEventListener('submit', handleSubmit);
@@ -143,12 +164,18 @@ function resetFormToDefaults() {
   state.editingId = '';
   form.reset();
   servicesList.innerHTML = '';
+  technicalTeamList.innerHTML = '';
+  fixedAdditionalInfoList.innerHTML = '';
+  additionalInfoList.innerHTML = '';
   priceTopics.innerHTML = '';
   resultPanel.hidden = true;
   state.lastOutputPath = '';
   document.querySelector('#form-title').textContent = 'Formulário da proposta';
 
   addServiceDescription('');
+  addTechnicalTeamMember('');
+  renderFixedAdditionalInfo();
+  addAdditionalInfo('');
   DEFAULT_PRICE_TOPICS.forEach((topic) => addPriceTopic({ ...topic }, true));
   fillDefaults();
   recalculate();
@@ -173,6 +200,61 @@ function addServiceDescription(value) {
     recalculate();
   });
   servicesList.appendChild(row);
+}
+
+function addTechnicalTeamMember(value) {
+  const row = document.createElement('div');
+  row.className = 'stack-row';
+  row.innerHTML = `
+    <input data-technical-team value="${escapeHtml(value)}" placeholder="Integrante / função da equipe técnica">
+    <button class="danger-action" type="button" title="Remover">x</button>
+  `;
+  row.querySelector('button').addEventListener('click', () => {
+    row.remove();
+    recalculate();
+  });
+  technicalTeamList.appendChild(row);
+}
+
+function addAdditionalInfo(value) {
+  const row = document.createElement('div');
+  row.className = 'stack-row';
+  row.innerHTML = `
+    <input data-additional-info value="${escapeHtml(value)}" placeholder="Informação adicional">
+    <button class="danger-action" type="button" title="Remover">x</button>
+  `;
+  row.querySelector('button').addEventListener('click', () => row.remove());
+  additionalInfoList.appendChild(row);
+}
+
+function renderFixedAdditionalInfo(data = {}) {
+  const saved = data.informacoes_adicionais_fixas;
+  const hasSavedValues = saved && typeof saved === 'object' && !Array.isArray(saved);
+  fixedAdditionalInfoList.innerHTML = '';
+
+  DEFAULT_FIXED_ADDITIONAL_INFO.forEach((definition) => {
+    if (hasSavedValues && !Object.prototype.hasOwnProperty.call(saved, definition.id)) {
+      return;
+    }
+    let value = hasSavedValues ? saved[definition.id] : definition.text;
+    if (!hasSavedValues && definition.id === '511' && data.prazo_execucao_dias) {
+      value = definition.text.replace('03 (três) dias', String(data.prazo_execucao_dias));
+    }
+    addFixedAdditionalInfo(definition, value);
+  });
+}
+
+function addFixedAdditionalInfo(definition, value) {
+  const row = document.createElement('div');
+  row.className = 'additional-info-row';
+  row.dataset.fixedAdditionalInfo = definition.id;
+  row.innerHTML = `
+    <span class="additional-info-number">${escapeHtml(definition.number)}</span>
+    <textarea rows="1" data-fixed-additional-text placeholder="Informação adicional">${escapeHtml(value)}</textarea>
+    <button class="danger-action" type="button" title="Remover">x</button>
+  `;
+  row.querySelector('button').addEventListener('click', () => row.remove());
+  fixedAdditionalInfoList.appendChild(row);
 }
 
 function addPriceTopic(topic = {}, withDefaultItem = false) {
@@ -223,7 +305,6 @@ function addItem(topicElement, values = {}) {
   row.dataset.itemType = topicElement.dataset.topicType || 'personalizado';
   row.innerHTML = `
     <input data-field="item" value="${escapeHtml(values.item || nextItemCode())}">
-    <input data-field="codigo" value="${escapeHtml(values.codigo || '')}">
     <input data-field="descricao" value="${escapeHtml(values.descricao || '')}">
     <input data-field="ncm" value="${escapeHtml(values.ncm ?? topicElement.dataset.defaultNcm ?? '')}">
     <input data-field="quant" type="text" inputmode="decimal" value="${escapeHtml(values.quant ?? 1)}">
@@ -269,6 +350,19 @@ function applyImportedData(result) {
     descriptions.forEach((item) => addServiceDescription(typeof item === 'string' ? item : item.item));
   }
 
+  const technicalTeam = technicalTeamEntries(result.data || {});
+  if (technicalTeam.length) {
+    technicalTeamList.innerHTML = '';
+    technicalTeam.forEach((item) => addTechnicalTeamMember(item));
+  }
+
+  const additionalInfo = result.informacoes_adicionais || result.data?.informacoes_adicionais || [];
+  if (additionalInfo.length) {
+    additionalInfoList.innerHTML = '';
+    additionalInfo.forEach((item) => addAdditionalInfo(typeof item === 'string' ? item : item.item));
+  }
+  renderFixedAdditionalInfo(result.data || {});
+
   renumberItemCodes();
   recalculate();
 }
@@ -287,7 +381,6 @@ function createItemHeader() {
   header.className = 'item-head';
   header.innerHTML = `
     <span>Item</span>
-    <span>C&oacute;digo</span>
     <span>Descrição</span>
     <span>NCM</span>
     <span>Quant</span>
@@ -454,6 +547,19 @@ function collectFormData() {
   data.servicos_descricao = Array.from(document.querySelectorAll('[data-service-description]'))
     .map((input) => input.value.trim())
     .filter(Boolean);
+  data.equipe_tecnica_itens = Array.from(document.querySelectorAll('[data-technical-team]'))
+    .map((input) => input.value.trim())
+    .filter(Boolean);
+  data.equipe_tecnica = data.equipe_tecnica_itens.join(' | ');
+  data.informacoes_adicionais = Array.from(document.querySelectorAll('[data-additional-info]'))
+    .map((input) => input.value.trim())
+    .filter(Boolean);
+  data.informacoes_adicionais_fixas = Object.fromEntries(
+    Array.from(fixedAdditionalInfoList.querySelectorAll('[data-fixed-additional-text]'))
+      .map((input) => [input.closest('[data-fixed-additional-info]')?.dataset.fixedAdditionalInfo, input.value.trim()])
+      .filter(([id, value]) => id && value)
+  );
+  data.prazo_execucao_dias = extractExecutionTime(data.informacoes_adicionais_fixas['511']);
   data.topicos_preco = collectPriceTopics();
   data.itens_servico = data.topicos_preco
     .filter((topic) => topic.tipo === 'servico')
@@ -481,14 +587,14 @@ function collectPriceTopics() {
 function collectItems(container) {
   return Array.from(container.querySelectorAll('.item-row')).map((row) => ({
     item: readRowField(row, 'item'),
-    codigo: readRowField(row, 'codigo'),
+    codigo: '',
     descricao: readRowField(row, 'descricao'),
     ncm: readRowField(row, 'ncm'),
     quant: readNumber(readRowField(row, 'quant')),
     un: readRowField(row, 'un'),
     valor_unit: readNumber(readRowField(row, 'valor_unit')),
     valor_total: readNumber(readRowField(row, 'valor_total'))
-  })).filter((item) => item.codigo || item.descricao || item.valor_unit || item.valor_total);
+  })).filter((item) => item.descricao || item.valor_unit || item.valor_total);
 }
 
 function readRowField(row, field) {
@@ -563,6 +669,7 @@ function renderHistory() {
     return [
       item.numero_documento,
       item.empresa_cliente,
+      item.unidade || item.data?.unidade,
       item.data_documento
     ].some((value) => String(value || '').toLowerCase().includes(query));
   });
@@ -572,6 +679,7 @@ function renderHistory() {
     <div class="proposal-row" role="row">
       <span>${escapeHtml(item.numero_documento || '-')}</span>
       <span>${escapeHtml(item.empresa_cliente || '-')}</span>
+      <span>${escapeHtml(item.unidade || item.data?.unidade || '-')}</span>
       <span>${escapeHtml(item.data_documento || '-')}</span>
       <span>${moneyFormatter.format(Number(item.preco_total_numero || 0))}</span>
       <div class="row-actions">
@@ -631,6 +739,9 @@ function loadProposalIntoForm(proposal, options = {}) {
   state.editingId = options.duplicate ? '' : proposal.id;
   form.reset();
   servicesList.innerHTML = '';
+  technicalTeamList.innerHTML = '';
+  fixedAdditionalInfoList.innerHTML = '';
+  additionalInfoList.innerHTML = '';
   priceTopics.innerHTML = '';
   resultPanel.hidden = true;
   state.lastOutputPath = options.duplicate ? '' : proposal.docxPath;
@@ -642,6 +753,13 @@ function loadProposalIntoForm(proposal, options = {}) {
 
   (data.servicos_descricao || []).forEach((item) => addServiceDescription(typeof item === 'string' ? item : item.item));
   if (!servicesList.children.length) addServiceDescription('');
+
+  technicalTeamEntries(data).forEach((item) => addTechnicalTeamMember(item));
+  if (!technicalTeamList.children.length) addTechnicalTeamMember('');
+
+  (data.informacoes_adicionais || []).forEach((item) => addAdditionalInfo(typeof item === 'string' ? item : item.item));
+  if (!additionalInfoList.children.length) addAdditionalInfo('');
+  renderFixedAdditionalInfo(data);
 
   const topics = Array.isArray(data.topicos_preco) && data.topicos_preco.length
     ? data.topicos_preco
@@ -662,6 +780,21 @@ function fillFormFields(data) {
     if (!field.name || data[field.name] == null || Array.isArray(data[field.name])) return;
     field.value = data[field.name];
   });
+}
+
+function technicalTeamEntries(data = {}) {
+  if (Array.isArray(data.equipe_tecnica_itens)) {
+    return data.equipe_tecnica_itens.map((item) => String(item).trim()).filter(Boolean);
+  }
+  return String(data.equipe_tecnica || '')
+    .split('|')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function extractExecutionTime(value) {
+  const match = String(value || '').match(/estimados em\s+(.+?),\s+incluindo/i);
+  return match ? match[1].trim() : '';
 }
 
 async function exportPdf(docxPath) {

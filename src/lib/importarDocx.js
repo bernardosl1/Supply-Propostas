@@ -59,10 +59,17 @@ function extractFormData(paragraphs, tables) {
   }
 
   data.objeto = valueAfter(paragraphs, 'OBJETO');
-  data.equipe_tecnica = valueAfter(paragraphs, 'Equipe Técnica');
+  data.equipe_tecnica_itens = valuesBetween(paragraphs, 'Equipe Técnica', 'Local e Data dos Serviços');
+  data.equipe_tecnica = data.equipe_tecnica_itens.join(' | ')
+    || valueAfter(paragraphs, 'Equipe Técnica');
   applyLocalAndDate(data, valueAfter(paragraphs, 'Local e Data dos Serviços'));
   data.servicos_descricao = valuesBetween(paragraphs, 'Descrição dos Serviços', 'Equipe Técnica');
   data.prazo_execucao_dias = extractPrazoExecucao(paragraphs);
+  data.informacoes_adicionais = valuesBetween(
+    paragraphs,
+    'Os Equipamentos e Ferramentas de propriedade da SUPPLY MARINE deverão ser devolvidos no prazo máximo de 03 (três) dias após a conclusão dos serviços. Caso contrário, a SUPPLY MARINE cobrará pelos custos de cessão dos mesmos conforme tabela abaixo',
+    'Atenciosamente,'
+  );
 
   const summaryTable = tables.find((table) => table.some((row) => normalize(row[0]) === 'preco total'));
   if (summaryTable) {

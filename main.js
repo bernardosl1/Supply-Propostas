@@ -87,13 +87,13 @@ function createWindow() {
                   const column = appliedTable?.querySelector('[data-custom-column-name]')?.value || '';
                   const item = appliedTable?.querySelector('[data-custom-cell]')?.value || '';
                   const company = document.querySelector('[name="empresa_cliente"]').value;
-                  if (title === 'EQUIPAMENTOS' && column === 'Equipamento' && !item && !company) {
+                  if (title === 'EQUIPAMENTOS' && column === 'Equipamento' && item === 'Bomba preenchida' && company === 'Conteudo que nao deve voltar') {
                     document.querySelector('#preview-proposal').click();
                     const preview = document.querySelector('#preview-dialog');
                     const previewText = document.querySelector('#proposal-preview-content')?.textContent || '';
                     const generatedPanelHidden = document.querySelector('#result-panel').hidden;
-                    if (preview.open && previewText.includes('EQUIPAMENTOS') && generatedPanelHidden) {
-                      resolve('estrutura mantida, itens limpos e previa sem gerar proposta');
+                    if (preview.open && previewText.includes('EQUIPAMENTOS') && previewText.includes('Bomba preenchida') && generatedPanelHidden) {
+                      resolve('proposta completa duplicada pelo modelo e previa sem gerar documento');
                     } else {
                       reject(new Error(JSON.stringify({ previewOpen: preview.open, previewText, generatedPanelHidden })));
                     }

@@ -41,9 +41,8 @@ $env:ELECTRON_RUN_AS_NODE='1'
 
 ## Modelos compartilhados no Supabase
 
-Os modelos guardam uma cópia completa da proposta, incluindo campos, itens,
-valores e blocos personalizados. Eles são sincronizados pela tabela
-`public.modelos_propostas` para ficarem visíveis em todas as máquinas. Antes de distribuir uma versão com
+Os modelos de propostas são sincronizados pela tabela `public.modelos_propostas`
+para ficarem visíveis em todas as máquinas. Antes de distribuir uma versão com
 essa funcionalidade, abra o **SQL Editor** do projeto Supabase, cole o conteúdo
 de `config/supabase-modelos.sql` e execute uma vez.
 

@@ -379,7 +379,7 @@ async function handleSaveModel(event) {
   submitButton.disabled = true;
   submitButton.textContent = 'Salvando...';
   try {
-    await window.supplyMarine.salvarModelo({ nome, empresa, estrutura: collectFormData() });
+    await window.supplyMarine.salvarModelo({ nome, empresa, estrutura: collectModelStructure() });
     modelDialog.close();
     await loadModels();
     showView('models');
@@ -1024,6 +1024,39 @@ function collectFlexibleBlocks() {
     });
 }
 
+function collectModelStructure() {
+  return {
+    secoes_excluidas: ['objeto', 'escopo'].filter((sectionId) => {
+      const section = flexibleBlocks.querySelector(`:scope > [data-proposal-section="${sectionId}"]`);
+      return Boolean(section?.hidden);
+    }),
+    ordem_secoes: collectProposalSectionOrder(),
+    blocos_adicionais: Array.from(flexibleBlocks.querySelectorAll('.flexible-block'))
+      .map(collectModelBlock)
+  };
+}
+
+function collectModelBlock(block) {
+  const type = block.dataset.flexType;
+  const result = {
+    id: block.dataset.flexId,
+    tipo: type,
+    titulo: block.querySelector('[data-flex-title]')?.value.trim() || ''
+  };
+  if (type === 'texto') {
+    result.subtopicos = collectFlexibleSubtopics(block.querySelector('.flexible-block-body > [data-flex-subtopics]'));
+  } else if (type === 'tabela') {
+    result.colunas = readFlexibleTable(block, { keepEmptyRows: true }).colunas;
+  } else if (type === 'preco') {
+    result.topicos_preco = Array.from(block.querySelectorAll('.price-topic')).map((topic) => ({
+      titulo: topic.querySelector('[data-topic-title]')?.value.trim() || '',
+      tipo: topic.dataset.topicType || 'personalizado',
+      itens: []
+    }));
+  }
+  return result;
+}
+
 function collectTopicObservations(container) {
   if (!container) return [];
   return Array.from(container.querySelectorAll(':scope > .topic-observation-row [data-topic-observation]'))
@@ -1625,8 +1658,20 @@ async function handleModelAction(action, id) {
 }
 
 function applyProposalModel(model) {
-  loadProposalIntoForm({ id: '', data: model.estrutura || {}, docxPath: '' }, { duplicate: true });
+  resetFormToDefaults();
+  const structure = model.estrutura || {};
+  clearFlexibleBlocks();
+  (structure.blocos_adicionais || []).forEach((block) => addFlexibleBlock(block));
+  applyExcludedFixedSections(structure.secoes_excluidas);
+  applyProposalSectionOrder(structure.ordem_secoes);
+  updateFlexibleEmptyState();
+  state.editingId = '';
+  state.lastOutputPath = '';
   document.querySelector('#form-title').textContent = `Nova proposta · ${model.nome || 'Modelo'}`;
+  resultPanel.hidden = true;
+  recalculate();
+  showView('form');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function renderHistory() {
@@ -1714,9 +1759,7 @@ function loadProposalIntoForm(proposal, options = {}) {
 
   fillFormFields({
     ...data,
-    numero_documento: options.duplicate && (data.numero_documento || proposal.numero_documento)
-      ? `${data.numero_documento || proposal.numero_documento}-COPIA`
-      : data.numero_documento
+    numero_documento: options.duplicate ? `${data.numero_documento || proposal.numero_documento}-COPIA` : data.numero_documento
   });
   applyExcludedFixedSections(data.secoes_excluidas);
 

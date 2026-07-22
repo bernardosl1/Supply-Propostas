@@ -8,12 +8,6 @@ const { listarModelos, salvarModelo, excluirModelo } = require('../src/lib/armaz
 const { normalizarEstruturaModelo } = require('../src/lib/modeloProposta');
 
 const estrutura = normalizarEstruturaModelo({
-  _historico_id: 'nao-deve-ser-copiado',
-  empresa_cliente: 'Cliente completo',
-  numero_documento: 'PROP-123',
-  objeto: 'Objeto integral da proposta',
-  servicos_descricao: ['Inspeção completa'],
-  equipe_tecnica_itens: ['Técnico responsável'],
   secoes_excluidas: ['escopo'],
   ordem_secoes: ['dados_comerciais', 'objeto', 'flex:topico-1', 'flex:tabela-1', 'flex:preco-1'],
   blocos_adicionais: [
@@ -21,8 +15,8 @@ const estrutura = normalizarEstruturaModelo({
       id: 'topico-1',
       tipo: 'texto',
       titulo: 'CRONOGRAMA',
-      observacoes: ['Conteúdo integral do modelo'],
-      subtopicos: [{ titulo: 'Etapas', observacoes: ['Item preservado'] }]
+      observacoes: ['Conteúdo que não pode ser salvo'],
+      subtopicos: [{ titulo: 'Etapas', observacoes: ['Item secreto'] }]
     },
     {
       id: 'tabela-1',
@@ -41,20 +35,14 @@ const estrutura = normalizarEstruturaModelo({
 });
 
 assert.deepEqual(estrutura.secoes_excluidas, ['escopo']);
-assert.equal(estrutura.empresa_cliente, 'Cliente completo');
-assert.equal(estrutura.numero_documento, 'PROP-123');
-assert.equal(estrutura.objeto, 'Objeto integral da proposta');
-assert.deepEqual(estrutura.servicos_descricao, ['Inspeção completa']);
-assert.deepEqual(estrutura.equipe_tecnica_itens, ['Técnico responsável']);
-assert.equal(Object.hasOwn(estrutura, '_historico_id'), false);
 assert.equal(estrutura.blocos_adicionais[0].titulo, 'CRONOGRAMA');
-assert.deepEqual(estrutura.blocos_adicionais[0].observacoes, ['Conteúdo integral do modelo']);
+assert.deepEqual(estrutura.blocos_adicionais[0].observacoes, []);
 assert.equal(estrutura.blocos_adicionais[0].subtopicos[0].titulo, 'Etapas');
-assert.deepEqual(estrutura.blocos_adicionais[0].subtopicos[0].observacoes, ['Item preservado']);
-assert.equal(estrutura.blocos_adicionais[1].linhas[0].valores.equipamento, 'Bomba preenchida');
+assert.deepEqual(estrutura.blocos_adicionais[0].subtopicos[0].observacoes, []);
+assert.deepEqual(estrutura.blocos_adicionais[1].linhas, []);
 assert.equal(estrutura.blocos_adicionais[1].colunas[0].nome, 'Equipamento');
-assert.equal(estrutura.blocos_adicionais[2].topicos_preco[0].itens[0].descricao, 'Item');
-assert.equal(estrutura.blocos_adicionais[2].preco_total_numero, 500);
+assert.deepEqual(estrutura.blocos_adicionais[2].topicos_preco[0].itens, []);
+assert.equal(Object.hasOwn(estrutura.blocos_adicionais[2], 'preco_total_numero'), false);
 
 const modelo = salvarModelo({ nome: 'Padrão offshore', empresa: 'Cliente Teste', estrutura });
 assert.ok(modelo.id);

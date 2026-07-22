@@ -160,6 +160,56 @@ async function excluirPropostaCloud(id) {
   return { removed: Boolean(row) };
 }
 
+async function listarModelosCloud() {
+  const supabase = requireClient();
+  const { data, error } = await supabase
+    .from('modelos_propostas')
+    .select('*')
+    .order('updated_at', { ascending: false });
+
+  if (error) throw error;
+  return (data || []).map(rowToModel);
+}
+
+async function salvarModeloCloud({ id, nome, empresa, estrutura }) {
+  const supabase = requireClient();
+  const now = new Date().toISOString();
+  const modelId = id || createId();
+  const { data: existing, error: existingError } = await supabase
+    .from('modelos_propostas')
+    .select('created_at')
+    .eq('id', modelId)
+    .maybeSingle();
+  if (existingError) throw existingError;
+
+  const { data, error } = await supabase
+    .from('modelos_propostas')
+    .upsert({
+      id: modelId,
+      nome: String(nome || '').trim(),
+      empresa: String(empresa || '').trim(),
+      estrutura,
+      created_at: existing?.created_at || now,
+      updated_at: now
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return rowToModel(data);
+}
+
+async function excluirModeloCloud(id) {
+  const supabase = requireClient();
+  const { data, error } = await supabase
+    .from('modelos_propostas')
+    .delete()
+    .eq('id', id)
+    .select('id');
+  if (error) throw error;
+  return { removed: Boolean(data?.length) };
+}
+
 async function resolveCloudFile(filePath) {
   const remote = parseRemotePath(filePath);
   if (!remote) {
@@ -256,6 +306,17 @@ function rowToProposal(row) {
   };
 }
 
+function rowToModel(row) {
+  return {
+    id: row.id,
+    nome: row.nome || '',
+    empresa: row.empresa || '',
+    estrutura: row.estrutura || {},
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
 function parseRemotePath(filePath) {
   if (!filePath || !String(filePath).startsWith(REMOTE_PREFIX)) {
     return null;
@@ -307,5 +368,8 @@ module.exports = {
   salvarPropostaCloud,
   atualizarPdfCloud,
   excluirPropostaCloud,
+  listarModelosCloud,
+  salvarModeloCloud,
+  excluirModeloCloud,
   resolveCloudFile
 };

@@ -10,7 +10,7 @@ function ensureStorage() {
   const propostasDir = getPropostasDir();
   fs.mkdirSync(propostasDir, { recursive: true });
   if (!fs.existsSync(indexPath())) {
-    fs.writeFileSync(indexPath(), JSON.stringify({ propostas: [] }, null, 2));
+    fs.writeFileSync(indexPath(), JSON.stringify({ propostas: [], modelos: [] }, null, 2));
   }
 }
 
@@ -18,9 +18,11 @@ function readIndex() {
   ensureStorage();
   try {
     const parsed = JSON.parse(fs.readFileSync(indexPath(), 'utf8'));
-    return Array.isArray(parsed.propostas) ? parsed : { propostas: [] };
+    return Array.isArray(parsed.propostas)
+      ? { ...parsed, modelos: Array.isArray(parsed.modelos) ? parsed.modelos : [] }
+      : { propostas: [], modelos: [] };
   } catch {
-    return { propostas: [] };
+    return { propostas: [], modelos: [] };
   }
 }
 
@@ -92,6 +94,44 @@ function excluirProposta(id) {
   return { removed: Boolean(proposta) };
 }
 
+function listarModelos() {
+  const index = readIndex();
+  return index.modelos
+    .slice()
+    .sort((a, b) => String(b.updatedAt || b.createdAt).localeCompare(String(a.updatedAt || a.createdAt)));
+}
+
+function salvarModelo({ id, nome, empresa, estrutura }) {
+  const index = readIndex();
+  const now = new Date().toISOString();
+  const existingIndex = id ? index.modelos.findIndex((item) => item.id === id) : -1;
+  const previous = existingIndex >= 0 ? index.modelos[existingIndex] : {};
+  const modelo = {
+    id: previous.id || createId(),
+    nome: String(nome || '').trim(),
+    empresa: String(empresa || '').trim(),
+    estrutura,
+    createdAt: previous.createdAt || now,
+    updatedAt: now
+  };
+
+  if (existingIndex >= 0) {
+    index.modelos[existingIndex] = modelo;
+  } else {
+    index.modelos.push(modelo);
+  }
+  writeIndex(index);
+  return modelo;
+}
+
+function excluirModelo(id) {
+  const index = readIndex();
+  const exists = index.modelos.some((item) => item.id === id);
+  index.modelos = index.modelos.filter((item) => item.id !== id);
+  writeIndex(index);
+  return { removed: exists };
+}
+
 function removeIfInsideStorage(filePath) {
   if (!filePath) return;
 
@@ -117,5 +157,8 @@ module.exports = {
   salvarProposta,
   atualizarPdf,
   excluirProposta,
+  listarModelos,
+  salvarModelo,
+  excluirModelo,
   indexPath
 };

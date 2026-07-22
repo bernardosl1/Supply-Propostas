@@ -26,6 +26,10 @@
             <span class="nav-icon file-icon"></span>
             <span>Nova Proposta</span>
           </button>
+          <button class="nav-link" type="button" data-view-button="models">
+            <span class="nav-icon template-icon"></span>
+            <span>Modelos de Propostas</span>
+          </button>
         </nav>
 
         <div class="sidebar-note">
@@ -90,6 +94,32 @@
           </section>
         </section>
 
+        <section class="view" id="models-view" aria-labelledby="models-title">
+          <header class="topbar">
+            <div>
+              <p class="eyebrow">Biblioteca de estruturas</p>
+              <h1 id="models-title">Modelos de propostas</h1>
+            </div>
+            <button class="primary-action" type="button" data-view-button="form">Nova proposta</button>
+          </header>
+
+          <section class="proposals-area models-area" aria-labelledby="saved-models-title">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Modelos salvos</p>
+                <h2 id="saved-models-title">Escolha uma estrutura para começar</h2>
+              </div>
+            </div>
+            <div class="model-grid" id="model-list"></div>
+            <div class="empty-state" id="model-empty-state">
+              <div>
+                <strong>Nenhum modelo salvo.</strong>
+                <p>Monte uma nova proposta e use “Salvar modelo”.</p>
+              </div>
+            </div>
+          </section>
+        </section>
+
         <section class="view" id="form-view" aria-labelledby="form-title">
           <header class="topbar sticky-topbar">
             <div>
@@ -98,6 +128,8 @@
             </div>
             <div class="toolbar">
               <button class="secondary-action" type="button" data-view-button="home">Voltar</button>
+              <button class="secondary-action" type="button" id="save-proposal-model">Salvar Modelo</button>
+              <button class="secondary-action" type="button" id="preview-proposal">Pré-visualizar</button>
               <button class="primary-action" form="proposal-form" type="submit">Gerar Proposta</button>
             </div>
           </header>
@@ -112,18 +144,25 @@
                   <h2>Autopreencher por DOCX</h2>
                 </div>
                 <div class="import-control">
-                  <button class="secondary-action" type="button" id="select-docx">Selecionar .docx</button>
+                  <div class="openai-key-control">
+                    <input id="openai-api-key" type="password" autocomplete="off" spellcheck="false" placeholder="Chave OpenAI (sk-...)">
+                    <button class="small-action" type="button" id="save-openai-key">Salvar chave</button>
+                  </div>
+                  <span id="openai-status">Verificando configuração do GPT-5.6 Luna...</span>
+                  <button class="secondary-action" type="button" id="select-docx" disabled>Selecionar .docx</button>
                   <span id="docx-status">Nenhum arquivo selecionado.</span>
                 </div>
               </div>
             </section>
 
-            <section class="form-section">
+            <div id="proposal-sections" class="proposal-sections">
+            <section class="form-section proposal-section fixed-proposal-section" data-proposal-section="dados_comerciais">
               <div class="section-heading">
                 <div>
-                  <p class="eyebrow">1. Dados comerciais</p>
+                  <p class="eyebrow"><span data-section-number>1.</span> Dados comerciais</p>
                   <h2>Cliente e documento</h2>
                 </div>
+                <button class="section-drag-handle" type="button" draggable="true" title="Arrastar seção" aria-label="Arrastar Dados comerciais">⋮⋮</button>
               </div>
               <div class="field-grid four-cols">
                 <label>Empresa cliente<input name="empresa_cliente" required></label>
@@ -140,10 +179,14 @@
               </div>
             </section>
 
-            <section class="form-section">
+            <section class="form-section proposal-section fixed-proposal-section" data-proposal-section="objeto">
               <div class="section-heading">
                 <div>
-                  <p class="eyebrow">2. Objeto</p>
+                  <p class="eyebrow"><span data-section-number>2.</span> Objeto</p>
+                </div>
+                <div class="fixed-section-actions">
+                  <button class="section-drag-handle" type="button" draggable="true" title="Arrastar seção" aria-label="Arrastar Objeto">⋮⋮</button>
+                  <button class="danger-action" type="button" data-remove-fixed-section="objeto" title="Excluir bloco Objeto" aria-label="Excluir bloco Objeto">x</button>
                 </div>
               </div>
               <div class="field-grid">
@@ -151,16 +194,20 @@
               </div>
             </section>
 
-            <section class="form-section">
+            <section class="form-section proposal-section fixed-proposal-section" data-proposal-section="escopo">
               <div class="section-heading">
                 <div>
-                  <p class="eyebrow">3. Escopo de fornecimento</p>
+                  <p class="eyebrow"><span data-section-number>3.</span> Escopo de fornecimento</p>
+                </div>
+                <div class="fixed-section-actions">
+                  <button class="section-drag-handle" type="button" draggable="true" title="Arrastar seção" aria-label="Arrastar Escopo de fornecimento">⋮⋮</button>
+                  <button class="danger-action" type="button" data-remove-fixed-section="escopo" title="Excluir bloco Escopo de fornecimento" aria-label="Excluir bloco Escopo de fornecimento">x</button>
                 </div>
               </div>
 
               <div class="dynamic-block">
                 <div class="inline-heading">
-                  <span class="field-label">3.1 Descrição dos serviços</span>
+                  <span class="field-label"><span data-scope-subsection="1">3.1</span> Descrição dos serviços</span>
                   <button class="small-action" type="button" data-add-service>Adicionar</button>
                 </div>
                 <div id="services-list" class="stack-list"></div>
@@ -168,68 +215,42 @@
 
               <div class="dynamic-block">
                 <div class="inline-heading">
-                  <span class="field-label">3.2 Equipe técnica</span>
+                  <span class="field-label"><span data-scope-subsection="2">3.2</span> Equipe técnica</span>
                   <button class="small-action" type="button" data-add-technical-team>Adicionar</button>
                 </div>
                 <div id="technical-team-list" class="stack-list"></div>
               </div>
 
               <div class="field-grid two-cols">
-                <label>3.3 Local do serviço<input name="local_servico"></label>
-                <label>3.3 Data do serviço<input name="data_servico" placeholder="dd/mm/aaaa"></label>
+                <label><span><span data-scope-subsection="3">3.3</span> Local do serviço</span><input name="local_servico"></label>
+                <label><span><span data-scope-subsection="3">3.3</span> Data do serviço</span><input name="data_servico" placeholder="dd/mm/aaaa"></label>
               </div>
             </section>
 
-            <section class="form-section">
-              <div class="section-heading">
+            </div>
+
+            <div class="fixed-section-restores" aria-label="Restaurar blocos excluídos">
+              <button class="small-action" type="button" data-restore-fixed-section="objeto" hidden>Restaurar Objeto</button>
+              <button class="small-action" type="button" data-restore-fixed-section="escopo" hidden>Restaurar Escopo de fornecimento</button>
+            </div>
+
+            <section class="form-section" id="flexible-content-section">
+              <div class="section-heading flexible-section-heading">
                 <div>
-                  <p class="eyebrow">4. Itens / preço</p>
-                  <h2>Serviços e consumíveis</h2>
+                  <p class="eyebrow">Se&ccedil;&otilde;es adicionais</p>
+                  <h2>Conte&uacute;do personalizado</h2>
+                  <p class="section-help">Adicione conte&uacute;do sem alterar dados comerciais, objeto, escopo ou a tabela oficial de pre&ccedil;os.</p>
                 </div>
-                <div class="price-actions">
-                  <button class="small-action" type="button" data-add-price-topic>Adicionar t&oacute;pico</button>
-                  <div class="total-box">
-                    <span>Total</span>
-                    <strong id="grand-total">R$ 0,00</strong>
-                  </div>
-                </div>
-              </div>
-
-              <div id="price-topics" class="price-topics"></div>
-
-              <div class="field-grid four-cols">
-                <label>Preço total<input name="preco_total_numero" data-money></label>
-                <label class="wide">Preço por extenso<input name="preco_total_extenso"></label>
-                <label>Moeda<input name="moeda" value="Real R$"></label>
-                <label>Validade da proposta<input name="validade_proposta" placeholder="dd/mm/aaaa"></label>
-                <label>Pagamento<input name="pagamento" placeholder="30 dias"></label>
-                <label>Prazo de entrega<input name="prazo_entrega" placeholder="Conforme item 5.1"></label>
-                <label>Frete<input name="frete" placeholder="FOB | Rio de Janeiro (RJ)"></label>
-                <label>Impostos<input name="impostos" value="inclusos no preço"></label>
-              </div>
-            </section>
-
-            <section class="form-section">
-              <div class="section-heading">
-                <div>
-                  <p class="eyebrow">5. Informações adicionais</p>
-                  <h2>Conteúdo do documento</h2>
+                <div class="flexible-add-actions" aria-label="Adicionar conte&uacute;do personalizado">
+                  <button class="small-action" type="button" data-add-flex-block="texto">T&oacute;pico</button>
+                  <button class="small-action" type="button" data-add-flex-block="lista">Documenta&ccedil;&atilde;o</button>
+                  <button class="small-action" type="button" data-add-flex-block="preco">Pre&ccedil;o</button>
+                  <button class="small-action" type="button" data-add-flex-block="tabela">Tabela</button>
+                  <button class="small-action" type="button" data-add-flex-block="quebra_pagina">Quebra de p&aacute;gina</button>
                 </div>
               </div>
-
-              <div class="dynamic-block">
-                <div class="inline-heading">
-                  <span class="field-label">Itens fixos editáveis</span>
-                </div>
-                <div id="fixed-additional-info-list" class="additional-info-list"></div>
-              </div>
-
-              <div class="dynamic-block">
-                <div class="inline-heading">
-                  <span class="field-label">Outras informações adicionais</span>
-                  <button class="small-action" type="button" data-add-additional-info>Adicionar</button>
-                </div>
-                <div id="additional-info-list" class="stack-list"></div>
+              <div id="flexible-empty-state" class="flexible-empty-state">
+                Nenhuma se&ccedil;&atilde;o personalizada adicionada.
               </div>
             </section>
 
@@ -249,6 +270,41 @@
         </section>
       </section>
     </main>
+
+    <dialog class="model-dialog" id="model-dialog" aria-labelledby="model-dialog-title">
+      <form method="dialog" id="model-dialog-form">
+        <div>
+          <p class="eyebrow">Novo modelo</p>
+          <h2 id="model-dialog-title">Salvar modelo de proposta</h2>
+          <p class="dialog-help">O modelo guardará os campos e a estrutura, sem salvar os itens preenchidos.</p>
+        </div>
+        <label>Nome do modelo<input id="model-name" maxlength="120" autocomplete="off" required></label>
+        <label>Empresa<input id="model-company" maxlength="160" autocomplete="organization" required></label>
+        <p class="dialog-error" id="model-dialog-error" hidden></p>
+        <div class="toolbar dialog-actions">
+          <button class="secondary-action" type="button" id="cancel-model-dialog">Cancelar</button>
+          <button class="primary-action" type="submit">Salvar modelo</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="preview-dialog" id="preview-dialog" aria-labelledby="preview-dialog-title">
+      <div class="preview-dialog-shell">
+        <header class="preview-toolbar">
+          <div>
+            <p class="eyebrow">Pré-visualização</p>
+            <h2 id="preview-dialog-title">Confira a proposta antes de gerar</h2>
+          </div>
+          <div class="toolbar">
+            <button class="secondary-action" type="button" id="close-proposal-preview">Voltar para edição</button>
+            <button class="primary-action" type="button" id="generate-from-preview">Gerar Proposta</button>
+          </div>
+        </header>
+        <div class="proposal-preview-scroll">
+          <article class="proposal-preview-page" id="proposal-preview-content"></article>
+        </div>
+      </div>
+    </dialog>
 
     <script src="./renderer.js"></script>
   </body>

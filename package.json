@@ -1,6 +1,6 @@
 {
   "name": "proposta-app",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "description": "Gerador local de propostas comerciais da Supply Marine.",
   "main": "main.js",
   "scripts": {
@@ -9,6 +9,7 @@
     "smoke:generate": "node scripts/run-electron.js --smoke-generate",
     "smoke:pdf": "node scripts/run-electron.js --smoke-pdf",
     "smoke:invalid": "node scripts/run-electron.js --smoke-invalid",
+    "smoke:models": "node scripts/run-electron.js --smoke-models",
     "template": "node scripts/criar-template.js",
     "template:backup": "node scripts/criar-template.js --backup",
     "template:ajustar-informacoes": "node scripts/criar-template.js --ajustar-informacoes",
@@ -16,9 +17,12 @@
     "test:docx": "node src/lib/gerarDocx.js scripts/dados-teste.json",
     "test:pdf": "node src/lib/gerarPdf.js propostas/20260200-teste.docx",
     "test:docx-import": "node scripts/testar-docx-import.js",
+    "test:flexible-blocks": "node scripts/testar-blocos-flexiveis.js",
     "test:history": "node scripts/testar-historico.js",
+    "test:models": "node scripts/testar-modelos.js",
     "pack": "electron-builder --dir",
-    "dist": "electron-builder --win nsis portable",
+    "dist": "electron-builder --win nsis",
+    "dist:release": "node scripts/build-release.js",
     "dist:installer": "electron-builder --win nsis",
     "dist:portable": "electron-builder --win portable"
   },
@@ -56,8 +60,7 @@
     "win": {
       "icon": "assets/logo.ico",
       "target": [
-        "nsis",
-        "portable"
+        "nsis"
       ]
     },
     "nsis": {
@@ -67,9 +70,6 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Supply Marine Propostas"
-    },
-    "portable": {
-      "artifactName": "Supply-Marine-Propostas-Portable-${version}.${ext}"
     }
   },
   "devDependencies": {

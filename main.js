@@ -1,18 +1,31 @@
 const path = require('node:path');
 const fs = require('node:fs');
-const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, dialog, safeStorage } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const { gerarDocx } = require('./src/lib/gerarDocx');
 const { gerarPdf } = require('./src/lib/gerarPdf');
-const { listarPropostas, salvarProposta, atualizarPdf, excluirProposta } = require('./src/lib/armazenamento');
+const {
+  listarPropostas,
+  salvarProposta,
+  atualizarPdf,
+  excluirProposta,
+  listarModelos,
+  salvarModelo,
+  excluirModelo
+} = require('./src/lib/armazenamento');
+const { normalizarEstruturaModelo } = require('./src/lib/modeloProposta');
 const { getPropostasDir } = require('./src/lib/paths');
 const { importarDocx } = require('./src/lib/importarDocx');
+const { createOpenAiConfig } = require('./src/lib/openAiConfig');
 const {
   isCloudEnabled,
   listarPropostasCloud,
   salvarPropostaCloud,
   atualizarPdfCloud,
   excluirPropostaCloud,
+  listarModelosCloud,
+  salvarModeloCloud,
+  excluirModeloCloud,
   resolveCloudFile
 } = require('./src/lib/supabaseStorage');
 
@@ -20,9 +33,11 @@ const isSmoke = process.argv.includes('--smoke');
 const isSmokeGenerate = process.argv.includes('--smoke-generate');
 const isSmokePdf = process.argv.includes('--smoke-pdf');
 const isSmokeInvalid = process.argv.includes('--smoke-invalid');
-const isPackagedRuntime = app.isPackaged && !isSmoke && !isSmokeGenerate && !isSmokePdf && !isSmokeInvalid;
+const isSmokeModels = process.argv.includes('--smoke-models');
+const isAnySmoke = isSmoke || isSmokeGenerate || isSmokePdf || isSmokeInvalid || isSmokeModels;
+const isPackagedRuntime = app.isPackaged && !isAnySmoke;
 
-if (isSmoke || isSmokeGenerate || isSmokePdf || isSmokeInvalid) {
+if (isAnySmoke) {
   app.setPath('userData', path.join(app.getPath('temp'), `supply-marine-propostas-smoke-${process.pid}`));
 }
 
@@ -44,8 +59,63 @@ function createWindow() {
 
   mainWindow.loadFile(path.join(__dirname, 'src', 'renderer', 'index.html'));
 
-  if (isSmoke || isSmokeGenerate || isSmokePdf || isSmokeInvalid) {
+  if (isAnySmoke) {
     mainWindow.webContents.once('did-finish-load', async () => {
+      if (isSmokeModels) {
+        try {
+          const result = await mainWindow.webContents.executeJavaScript(`
+            new Promise((resolve, reject) => {
+              document.querySelector('[data-view-button="form"]').click();
+              document.querySelector('[name="empresa_cliente"]').value = 'Conteudo que nao deve voltar';
+              document.querySelector('[data-add-flex-block="tabela"]').click();
+              const table = document.querySelector('#proposal-sections .flexible-block:last-child');
+              table.querySelector('[data-flex-title]').value = 'EQUIPAMENTOS';
+              table.querySelector('[data-custom-column-name]').value = 'Equipamento';
+              table.querySelector('[data-custom-cell]').value = 'Bomba preenchida';
+              document.querySelector('#save-proposal-model').click();
+              document.querySelector('#model-name').value = 'Modelo smoke';
+              document.querySelector('#model-company').value = 'Empresa smoke';
+              document.querySelector('#model-dialog-form').requestSubmit();
+              const start = Date.now();
+              const timer = setInterval(() => {
+                const useButton = document.querySelector('[data-model-action="use"]');
+                if (useButton) {
+                  clearInterval(timer);
+                  useButton.click();
+                  const appliedTable = document.querySelector('#proposal-sections .flexible-block[data-flex-type="tabela"]');
+                  const title = appliedTable?.querySelector('[data-flex-title]')?.value || '';
+                  const column = appliedTable?.querySelector('[data-custom-column-name]')?.value || '';
+                  const item = appliedTable?.querySelector('[data-custom-cell]')?.value || '';
+                  const company = document.querySelector('[name="empresa_cliente"]').value;
+                  if (title === 'EQUIPAMENTOS' && column === 'Equipamento' && !item && !company) {
+                    document.querySelector('#preview-proposal').click();
+                    const preview = document.querySelector('#preview-dialog');
+                    const previewText = document.querySelector('#proposal-preview-content')?.textContent || '';
+                    const generatedPanelHidden = document.querySelector('#result-panel').hidden;
+                    if (preview.open && previewText.includes('EQUIPAMENTOS') && generatedPanelHidden) {
+                      resolve('estrutura mantida, itens limpos e previa sem gerar proposta');
+                    } else {
+                      reject(new Error(JSON.stringify({ previewOpen: preview.open, previewText, generatedPanelHidden })));
+                    }
+                  } else {
+                    reject(new Error(JSON.stringify({ title, column, item, company })));
+                  }
+                }
+                if (Date.now() - start > 5000) {
+                  clearInterval(timer);
+                  reject(new Error('Modelo nao apareceu na biblioteca'));
+                }
+              }, 100);
+            });
+          `);
+          console.log(`Smoke modelos: ${result}`);
+          app.quit();
+        } catch (error) {
+          console.error(error);
+          app.exit(1);
+        }
+        return;
+      }
       if (isSmokeInvalid) {
         try {
           const validationText = await mainWindow.webContents.executeJavaScript(`
@@ -86,8 +156,44 @@ function createWindow() {
               document.querySelector('[name="responsavel_nome"]').value = 'Responsavel Smoke';
               document.querySelector('[name="objeto"]').value = 'Teste de geração automática';
               document.querySelector('[data-service-description]').value = 'Serviço de teste';
-              document.querySelector('#price-topics .item-row [data-field="descricao"]').value = 'Técnico';
-              document.querySelector('#price-topics .item-row [data-field="valor_unit"]').value = '100';
+              document.querySelector('[data-add-flex-block="texto"]').click();
+              const topic = document.querySelector('#proposal-sections .flexible-block:last-child');
+              topic.querySelector('[data-flex-title]').value = 'CRONOGRAMA';
+              topic.querySelector('[data-add-topic-observation]').click();
+              topic.querySelector('[data-topic-observation]').value = 'Conteudo adicional do smoke test.';
+              topic.querySelector('[data-add-subtopic]').click();
+              topic.querySelector('[data-flex-subtopic-title]').value = 'Etapas';
+              topic.querySelector('[data-add-subtopic-observation]').click();
+              topic.querySelector('[data-subtopic-observations] [data-topic-observation]').value = 'Primeira etapa';
+              const firstSubtopic = topic.querySelector('[data-flex-subtopics] > .flex-subtopic');
+              firstSubtopic.querySelector('[data-add-nested-subtopic]').click();
+              const nestedSubtopic = firstSubtopic.querySelector('[data-flex-subtopics] > .flex-subtopic');
+              nestedSubtopic.querySelector('[data-flex-subtopic-title]').value = 'Detalhamento';
+              nestedSubtopic.querySelector('[data-add-subtopic-observation]').click();
+              nestedSubtopic.querySelector('[data-subtopic-observations] [data-topic-observation]').value = 'Etapa interna';
+              document.querySelector('[data-add-flex-block="lista"]').click();
+              const documentList = document.querySelector('#proposal-sections .flexible-block:last-child');
+              documentList.querySelector('[data-flex-list-field="descricao"]').value = 'Solicitacao de cotacao';
+              documentList.querySelector('[data-flex-list-field="numero_documento"]').value = 'SC35085';
+              documentList.querySelector('[data-flex-list-field="data"]').value = '14072026';
+              documentList.querySelector('[data-flex-list-field="data"]').dispatchEvent(new Event('input', { bubbles: true }));
+              document.querySelector('[data-add-flex-block="preco"]').click();
+              const additionalPrice = document.querySelector('#proposal-sections .flexible-block:last-child');
+              additionalPrice.querySelector('[data-topic-title]').value = 'LOCACAO';
+              additionalPrice.querySelector('[data-field="descricao"]').value = 'Equipamento adicional';
+              additionalPrice.querySelector('[data-field="valor_unit"]').value = '250';
+              additionalPrice.querySelector('[data-field="quant"]').value = '2';
+              additionalPrice.querySelector('[data-flex-price-field="pagamento"]').value = '15 dias';
+              additionalPrice.querySelector('[data-field="valor_unit"]').dispatchEvent(new Event('input', { bubbles: true }));
+              document.querySelector('[data-add-flex-block="tabela"]').click();
+              const customTable = document.querySelector('#proposal-sections .flexible-block:last-child');
+              customTable.querySelector('[data-flex-title]').value = 'EQUIPAMENTOS';
+              customTable.querySelectorAll('[data-custom-column-name]')[0].value = 'Equipamento';
+              customTable.querySelectorAll('[data-custom-column-name]')[1].value = 'Quantidade';
+              customTable.querySelectorAll('[data-custom-cell]')[0].value = 'Bomba de teste';
+              customTable.querySelectorAll('[data-custom-cell]')[1].value = '2';
+              topic.querySelector('[data-flex-action="up"]').click();
+              topic.querySelector('[data-flex-action="up"]').click();
               document.querySelector('#proposal-form').requestSubmit();
               const start = Date.now();
               const timer = setInterval(() => {
@@ -98,7 +204,8 @@ function createWindow() {
                 }
                 if (Date.now() - start > 10000) {
                   clearInterval(timer);
-                  reject(new Error(path || 'Tempo esgotado ao gerar DOCX'));
+                  const alert = document.querySelector('#form-alert')?.textContent || '';
+                  reject(new Error(alert || path || 'Tempo esgotado ao gerar DOCX'));
                 }
               }, 200);
             });
@@ -143,6 +250,7 @@ function createWindow() {
 
 app.whenReady().then(() => {
   configureStoragePath();
+  const openAiConfig = createOpenAiConfig({ app, safeStorage });
 
   ipcMain.handle('app:version', () => app.getVersion());
   ipcMain.handle('proposta:gerar-docx', async (_event, data) => {
@@ -183,6 +291,23 @@ app.whenReady().then(() => {
     const localResult = excluirProposta(id);
     return tryCloud(() => excluirPropostaCloud(id), localResult);
   });
+  ipcMain.handle('modelos:listar', () => tryCloud(listarModelosCloud, listarModelos()));
+  ipcMain.handle('modelos:salvar', async (_event, payload = {}) => {
+    const nome = String(payload.nome || '').trim();
+    const empresa = String(payload.empresa || '').trim();
+    if (!nome) throw new Error('Informe o nome do modelo.');
+    if (!empresa) throw new Error('Informe a empresa do modelo.');
+    const localModel = salvarModelo({
+      nome,
+      empresa,
+      estrutura: normalizarEstruturaModelo(payload.estrutura)
+    });
+    return tryCloud(() => salvarModeloCloud(localModel), localModel);
+  });
+  ipcMain.handle('modelos:excluir', async (_event, id) => {
+    const localResult = excluirModelo(id);
+    return tryCloud(() => excluirModeloCloud(id), localResult);
+  });
   ipcMain.handle('arquivo:abrir', async (_event, filePath) => {
     const resolvedPath = await tryCloud(() => resolveCloudFile(filePath), filePath);
     return shell.openPath(resolvedPath);
@@ -195,8 +320,10 @@ app.whenReady().then(() => {
     });
     return result.canceled ? null : result.filePaths[0];
   });
+  ipcMain.handle('openai:status', () => openAiConfig.getStatus());
+  ipcMain.handle('openai:salvar-chave', (_event, apiKey) => openAiConfig.saveApiKey(apiKey));
   ipcMain.handle('docx:importar', async (_event, filePath) => {
-    return importarDocx(filePath);
+    return importarDocx(filePath, { apiKey: openAiConfig.getApiKey() });
   });
   createWindow();
 
@@ -218,7 +345,7 @@ function buildProposalPath(data) {
 }
 
 function configureStoragePath() {
-  const baseDir = isSmoke || isSmokeGenerate || isSmokePdf || isSmokeInvalid
+  const baseDir = isAnySmoke
     ? app.getPath('userData')
     : app.getPath('documents');
   process.env.SUPPLY_MARINE_PROPOSTAS_DIR = path.join(baseDir, 'Supply Marine Propostas');
@@ -263,7 +390,7 @@ function sanitizeProposalData(data) {
 }
 
 async function tryCloud(operation, fallback) {
-  if (!isCloudEnabled()) {
+  if (isAnySmoke || !isCloudEnabled()) {
     return fallback;
   }
 

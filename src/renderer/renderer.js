@@ -1,8 +1,11 @@
 const state = {
   proposals: [],
   filteredProposals: [],
+  models: [],
   lastOutputPath: '',
-  editingId: ''
+  editingId: '',
+  draggingSection: null,
+  draggingSubtopic: null
 };
 
 const moneyFormatter = new Intl.NumberFormat('pt-BR', {
@@ -19,16 +22,12 @@ const versionTarget = document.querySelector('.sidebar-note span:last-child');
 const form = document.querySelector('#proposal-form');
 const servicesList = document.querySelector('#services-list');
 const technicalTeamList = document.querySelector('#technical-team-list');
-const fixedAdditionalInfoList = document.querySelector('#fixed-additional-info-list');
-const additionalInfoList = document.querySelector('#additional-info-list');
-const priceTopics = document.querySelector('#price-topics');
 const resultPanel = document.querySelector('#result-panel');
 const resultPath = document.querySelector('#result-path');
 const pdfStatus = document.querySelector('#pdf-status');
 const formAlert = document.querySelector('#form-alert');
 const openDocxButton = document.querySelector('#open-docx');
 const exportPdfButton = document.querySelector('#export-pdf');
-const grandTotal = document.querySelector('#grand-total');
 const proposalList = document.querySelector('#proposal-list');
 const emptyState = document.querySelector('#empty-state');
 const summaryCount = document.querySelector('#summary-count');
@@ -36,26 +35,36 @@ const summaryLast = document.querySelector('#summary-last');
 const historySearch = document.querySelector('#history-search');
 const selectDocxButton = document.querySelector('#select-docx');
 const docxStatus = document.querySelector('#docx-status');
+const openAiKeyInput = document.querySelector('#openai-api-key');
+const saveOpenAiKeyButton = document.querySelector('#save-openai-key');
+const openAiStatus = document.querySelector('#openai-status');
+const flexibleBlocks = document.querySelector('#proposal-sections');
+const flexibleEmptyState = document.querySelector('#flexible-empty-state');
+const saveProposalModelButton = document.querySelector('#save-proposal-model');
+const modelList = document.querySelector('#model-list');
+const modelEmptyState = document.querySelector('#model-empty-state');
+const modelDialog = document.querySelector('#model-dialog');
+const modelDialogForm = document.querySelector('#model-dialog-form');
+const modelNameInput = document.querySelector('#model-name');
+const modelCompanyInput = document.querySelector('#model-company');
+const modelDialogError = document.querySelector('#model-dialog-error');
+const previewProposalButton = document.querySelector('#preview-proposal');
+const previewDialog = document.querySelector('#preview-dialog');
+const previewContent = document.querySelector('#proposal-preview-content');
+
+const FLEXIBLE_BLOCK_LABELS = {
+  texto: 'T\u00f3pico',
+  lista: 'Documenta\u00e7\u00e3o',
+  preco: 'Pre\u00e7o',
+  tabela: 'Tabela',
+  quebra_pagina: 'Quebra de p\u00e1gina'
+};
+
+const DEFAULT_FIXED_SECTION_ORDER = ['dados_comerciais', 'objeto', 'escopo'];
 
 const DEFAULT_PRICE_TOPICS = [
   { tipo: 'servico', titulo: 'Itens de servi\u00e7o', ncm: '-----', un: 'HH' },
   { tipo: 'consumivel', titulo: 'Consum\u00edveis', ncm: '', un: 'PC' }
-];
-
-const DEFAULT_FIXED_ADDITIONAL_INFO = [
-  { id: '51', number: '5.1', text: 'Prazo de Execução' },
-  { id: '511', number: '5.1.1', text: 'Serviços: Estimados em 03 (três) dias, incluindo translado ida & volta Equipe;' },
-  { id: '512', number: '5.1.2', text: 'Consumíveis/Materiais/Equipamentos: Imediato;' },
-  { id: '513', number: '5.1.3', text: 'O prazo de Execução dos serviços pode ser alterado de acordo com as condições de execução dos mesmos;' },
-  { id: '514', number: '5.1.4', text: 'Caso o prazo de execução seja diferente do mencionado, o valor total da presente proposta será alterado conforme as informações abaixo:' },
-  { id: '514a', number: '•', text: 'De Segunda-feira a Sexta-feira das 17h30min até as 7h30min 50% adicional;' },
-  { id: '514b', number: '•', text: 'Durante o Sábado 50% adicional o dia todo;' },
-  { id: '514c', number: '•', text: 'Domingos e Feriados 100% adicional o dia todo;' },
-  { id: '514d', number: '•', text: 'Diária Offshore quando o barco em operação ou fundeado e a equipe permanecer a bordo.' },
-  { id: '52', number: '5.2', text: 'Caso haja a necessidade de substituição de algum componente não previsto nesta proposta o mesmo será objeto de orçamento aditivo.' },
-  { id: '53', number: '5.3', text: 'Após o término do serviço será enviado uma medição, incluindo as horas de viagem, espera a bordo e a disposição, caso necessário.' },
-  { id: '54', number: '5.4', text: 'Todas as despesas com deslocamento, alimentação e estadia da equipe, caso necessário, serão por conta do cliente;' },
-  { id: '55', number: '5.5', text: 'Os Equipamentos e Ferramentas de propriedade da SUPPLY MARINE deverão ser devolvidos no prazo máximo de 03 (três) dias após a conclusão dos serviços. Caso contrário, a SUPPLY MARINE cobrará pelos custos de cessão dos mesmos conforme tabela abaixo:' }
 ];
 
 init();
@@ -64,9 +73,14 @@ function init() {
   bindNavigation();
   bindProposalImport();
   bindForm();
+  bindModels();
+  bindPreview();
+  bindSectionDragAndDrop();
   bindHistory();
   resetFormToDefaults();
   loadHistory();
+  loadModels();
+  loadOpenAiStatus();
 
   if (window.supplyMarine && versionTarget) {
     window.supplyMarine.getVersion().then((version) => {
@@ -81,6 +95,7 @@ function bindNavigation() {
       if (button.dataset.viewButton === 'form') {
         resetFormToDefaults();
       }
+      if (button.dataset.viewButton === 'models') loadModels();
       showView(button.dataset.viewButton);
     });
   });
@@ -107,8 +122,15 @@ function showView(viewName) {
 function bindForm() {
   document.querySelector('[data-add-service]').addEventListener('click', () => addServiceDescription(''));
   document.querySelector('[data-add-technical-team]').addEventListener('click', () => addTechnicalTeamMember(''));
-  document.querySelector('[data-add-additional-info]').addEventListener('click', () => addAdditionalInfo(''));
-  document.querySelector('[data-add-price-topic]').addEventListener('click', () => addPriceTopic());
+  document.querySelectorAll('[data-remove-fixed-section]').forEach((button) => {
+    button.addEventListener('click', () => setFixedSectionVisible(button.dataset.removeFixedSection, false));
+  });
+  document.querySelectorAll('[data-restore-fixed-section]').forEach((button) => {
+    button.addEventListener('click', () => setFixedSectionVisible(button.dataset.restoreFixedSection, true));
+  });
+  document.querySelectorAll('[data-add-flex-block]').forEach((button) => {
+    button.addEventListener('click', () => addFlexibleBlock({ tipo: button.dataset.addFlexBlock }));
+  });
   form.addEventListener('input', recalculate);
   form.addEventListener('submit', handleSubmit);
   openDocxButton.addEventListener('click', () => {
@@ -119,8 +141,363 @@ function bindForm() {
   exportPdfButton.addEventListener('click', () => exportPdf(state.lastOutputPath));
 }
 
+function bindModels() {
+  saveProposalModelButton.addEventListener('click', openModelDialog);
+  document.querySelector('#cancel-model-dialog').addEventListener('click', () => modelDialog.close());
+  modelDialogForm.addEventListener('submit', handleSaveModel);
+}
+
+function bindPreview() {
+  previewProposalButton.addEventListener('click', openProposalPreview);
+  document.querySelector('#close-proposal-preview').addEventListener('click', () => previewDialog.close());
+  document.querySelector('#generate-from-preview').addEventListener('click', () => {
+    previewDialog.close();
+    form.requestSubmit();
+  });
+}
+
+function openProposalPreview() {
+  const data = collectFormData();
+  previewContent.innerHTML = renderProposalPreview(data);
+  previewDialog.showModal();
+  previewDialog.querySelector('.proposal-preview-scroll').scrollTop = 0;
+}
+
+function renderProposalPreview(data) {
+  const blocks = Array.isArray(data.blocos_adicionais) ? data.blocos_adicionais : [];
+  const sections = new Map();
+  sections.set('dados_comerciais', { type: 'fixed', id: 'dados_comerciais' });
+  if (!data.secoes_excluidas?.includes('objeto')) sections.set('objeto', { type: 'fixed', id: 'objeto' });
+  if (!data.secoes_excluidas?.includes('escopo')) sections.set('escopo', { type: 'fixed', id: 'escopo' });
+  blocks.forEach((block, index) => sections.set(`flex:${block.id || index}`, { type: 'flex', block }));
+
+  const ordered = [];
+  (data.ordem_secoes || []).forEach((id) => {
+    if (!sections.has(id)) return;
+    ordered.push(sections.get(id));
+    sections.delete(id);
+  });
+  sections.forEach((section) => ordered.push(section));
+
+  let sectionNumber = 1;
+  const body = ordered.map((section) => {
+    if (section.type === 'flex' && section.block.tipo === 'quebra_pagina') {
+      return '<div class="preview-page-break"><span>Quebra de página</span></div>';
+    }
+    const html = section.type === 'fixed'
+      ? renderFixedPreviewSection(section.id, sectionNumber, data)
+      : renderFlexiblePreviewSection(section.block, sectionNumber);
+    sectionNumber += 1;
+    return html;
+  }).join('');
+
+  return `
+    <header class="preview-document-header">
+      <img src="../../assets/logo.ico" alt="Supply Marine">
+      <div>
+        <strong>${previewValue(data.empresa_cliente, 'Empresa não informada')}</strong>
+        <span>${previewValue(data.numero_documento, 'Número não informado')} · ${previewValue(data.data_documento, 'Data não informada')}</span>
+      </div>
+    </header>
+    ${body}
+    <section class="preview-section">
+      <p>Atenciosamente,</p>
+      <p><strong>${previewValue(data.responsavel_nome, 'Responsável não informado')}</strong></p>
+      ${data.responsavel_email ? `<p>${escapeHtml(data.responsavel_email)}</p>` : ''}
+      ${data.responsavel_telefone ? `<p>${escapeHtml(data.responsavel_telefone)}</p>` : ''}
+    </section>
+  `;
+}
+
+function renderFixedPreviewSection(sectionId, number, data) {
+  if (sectionId === 'dados_comerciais') {
+    const fields = [
+      ['Empresa', data.empresa_cliente],
+      ['Nº do documento', data.numero_documento],
+      ['Unidade', data.unidade],
+      ['Data do documento', data.data_documento],
+      ['Solicitação nº', data.processo_fluig],
+      ['Responsável', data.responsavel_nome],
+      ['Contato', data.solicitante_nome_cargo],
+      ['E-mail', data.responsavel_email],
+      ['E-mail do contato', data.contato_email],
+      ['Telefone', data.responsavel_telefone || data.contato_telefone]
+    ];
+    return `
+      <section class="preview-section">
+        <h3 class="preview-section-title">${number}. Dados comerciais</h3>
+        <div class="preview-commercial-grid">
+          ${fields.map(([label, value]) => `<p><b>${escapeHtml(label)}:</b> ${previewValue(value)}</p>`).join('')}
+        </div>
+      </section>
+    `;
+  }
+  if (sectionId === 'objeto') {
+    return `
+      <section class="preview-section">
+        <h3 class="preview-section-title">${number}. Objeto</h3>
+        <p>${previewMultiline(data.objeto)}</p>
+      </section>
+    `;
+  }
+  const descriptions = Array.isArray(data.servicos_descricao) ? data.servicos_descricao : [];
+  const team = Array.isArray(data.equipe_tecnica_itens) ? data.equipe_tecnica_itens : [];
+  const locationAndDate = [data.local_servico, data.data_servico].filter(Boolean).join(' | ');
+  return `
+    <section class="preview-section">
+      <h3 class="preview-section-title">${number}. Escopo de fornecimento</h3>
+      <h4 class="preview-subsection-title">${number}.1 Descrição dos serviços</h4>
+      ${renderPreviewList(descriptions)}
+      <h4 class="preview-subsection-title">${number}.2 Equipe técnica</h4>
+      ${renderPreviewList(team)}
+      ${locationAndDate ? `<h4 class="preview-subsection-title">${number}.3 Local e data dos serviços</h4><p>${escapeHtml(locationAndDate)}</p>` : ''}
+    </section>
+  `;
+}
+
+function renderFlexiblePreviewSection(block, number) {
+  const title = block.tipo === 'preco'
+    ? 'Preço'
+    : block.tipo === 'lista'
+      ? 'Documentação'
+      : block.titulo || 'Tópico sem nome';
+  let content = '';
+  if (block.tipo === 'texto') {
+    content = `${renderPreviewList(block.observacoes)}${renderPreviewSubtopics(block.subtopicos, String(number))}`;
+  } else if (block.tipo === 'lista') {
+    content = renderDocumentationPreview(block.linhas || []);
+  } else if (block.tipo === 'tabela') {
+    content = renderCustomTablePreview(block);
+  } else if (block.tipo === 'preco') {
+    content = renderPricePreview(block);
+  }
+  return `
+    <section class="preview-section">
+      <h3 class="preview-section-title">${number}. ${escapeHtml(title)}</h3>
+      ${content}
+    </section>
+  `;
+}
+
+function renderPreviewSubtopics(subtopics = [], parentNumber) {
+  return subtopics.map((subtopic, index) => {
+    const number = `${parentNumber}.${index + 1}`;
+    return `
+      <h4 class="preview-subsection-title">${number} ${escapeHtml(subtopic.titulo || 'Subtópico sem nome')}</h4>
+      ${renderPreviewList(subtopic.observacoes)}
+      ${renderPreviewSubtopics(subtopic.subtopicos || [], number)}
+    `;
+  }).join('');
+}
+
+function renderDocumentationPreview(rows) {
+  if (!rows.length) return previewEmpty();
+  return `
+    <table class="preview-table">
+      <thead><tr><th>Descrição</th><th>Nº do documento</th><th>Data</th></tr></thead>
+      <tbody>${rows.map((row) => `<tr><td>${previewValue(row.descricao)}</td><td>${previewValue(row.numero_documento)}</td><td>${previewValue(row.data)}</td></tr>`).join('')}</tbody>
+    </table>
+  `;
+}
+
+function renderCustomTablePreview(block) {
+  const columns = Array.isArray(block.colunas) ? block.colunas : [];
+  const rows = Array.isArray(block.linhas) ? block.linhas : [];
+  if (!columns.length) return previewEmpty();
+  return `
+    <table class="preview-table">
+      <thead><tr>${columns.map((column) => `<th>${previewValue(column.nome, 'Coluna')}</th>`).join('')}</tr></thead>
+      <tbody>${rows.map((row) => `<tr>${columns.map((column) => `<td>${previewValue(row.valores?.[column.id])}</td>`).join('')}</tr>`).join('')}</tbody>
+    </table>
+    ${rows.length ? '' : previewEmpty()}
+  `;
+}
+
+function renderPricePreview(block) {
+  const topics = Array.isArray(block.topicos_preco) ? block.topicos_preco : [];
+  const topicHtml = topics.map((topic) => `
+    <h4 class="preview-subsection-title">${escapeHtml(topic.titulo || 'Itens')}</h4>
+    <table class="preview-table">
+      <thead><tr><th>Item</th><th>Descrição</th><th>NCM</th><th>Quant.</th><th>UN</th><th>Valor unit.</th><th>Total</th></tr></thead>
+      <tbody>${(topic.itens || []).map((item) => `<tr><td>${previewValue(item.item)}</td><td>${previewValue(item.descricao)}</td><td>${previewValue(item.ncm)}</td><td>${previewValue(item.quant)}</td><td>${previewValue(item.un)}</td><td>${moneyFormatter.format(Number(item.valor_unit || 0))}</td><td>${moneyFormatter.format(Number(item.valor_total || 0))}</td></tr>`).join('')}</tbody>
+    </table>
+  `).join('');
+  const terms = [
+    ['Validade da proposta', block.validade_proposta],
+    ['Pagamento', block.pagamento],
+    ['Prazo de entrega', block.prazo_entrega],
+    ['Frete', block.frete],
+    ['Impostos', block.impostos]
+  ].filter(([, value]) => value);
+  return `
+    ${topicHtml || previewEmpty()}
+    <p class="preview-price-total">Preço total: ${moneyFormatter.format(Number(block.preco_total_numero || 0))}${block.preco_total_extenso ? ` (${escapeHtml(block.preco_total_extenso)})` : ''}</p>
+    ${terms.map(([label, value]) => `<p><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>`).join('')}
+  `;
+}
+
+function renderPreviewList(items = []) {
+  const normalized = items.map((item) => typeof item === 'string' ? item : item?.item || '').filter(Boolean);
+  return normalized.length ? `<ul>${normalized.map((item) => `<li>${previewMultiline(item)}</li>`).join('')}</ul>` : previewEmpty();
+}
+
+function previewMultiline(value) {
+  const text = String(value || '').trim();
+  return text ? escapeHtml(text).replace(/\r?\n/g, '<br>') : previewEmpty();
+}
+
+function previewValue(value, fallback = 'Não informado') {
+  const text = String(value ?? '').trim();
+  return text ? escapeHtml(text) : `<span class="preview-empty-value">${escapeHtml(fallback)}</span>`;
+}
+
+function previewEmpty() {
+  return '<span class="preview-empty-value">Nenhum conteúdo informado</span>';
+}
+
+function openModelDialog() {
+  modelDialogForm.reset();
+  modelDialogError.hidden = true;
+  modelDialogError.textContent = '';
+  modelCompanyInput.value = form.elements.empresa_cliente?.value.trim() || '';
+  modelDialog.showModal();
+  modelNameInput.focus();
+}
+
+async function handleSaveModel(event) {
+  event.preventDefault();
+  const nome = modelNameInput.value.trim();
+  const empresa = modelCompanyInput.value.trim();
+  if (!nome || !empresa) {
+    modelDialogError.textContent = 'Informe o nome do modelo e a empresa.';
+    modelDialogError.hidden = false;
+    (!nome ? modelNameInput : modelCompanyInput).focus();
+    return;
+  }
+
+  const submitButton = modelDialogForm.querySelector('[type="submit"]');
+  submitButton.disabled = true;
+  submitButton.textContent = 'Salvando...';
+  try {
+    await window.supplyMarine.salvarModelo({ nome, empresa, estrutura: collectModelStructure() });
+    modelDialog.close();
+    await loadModels();
+    showView('models');
+  } catch (error) {
+    modelDialogError.textContent = error.message || String(error);
+    modelDialogError.hidden = false;
+  } finally {
+    submitButton.disabled = false;
+    submitButton.textContent = 'Salvar modelo';
+  }
+}
+
+function bindSectionDragAndDrop() {
+  flexibleBlocks.addEventListener('dragstart', (event) => {
+    const subtopicHandle = event.target.closest('.subtopic-drag-handle');
+    const subtopic = subtopicHandle?.closest('.flex-subtopic');
+    if (subtopic) {
+      state.draggingSubtopic = subtopic;
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', subtopic.dataset.subtopicId || 'subtopic');
+      requestAnimationFrame(() => subtopic.classList.add('dragging'));
+      return;
+    }
+    const handle = event.target.closest('.section-drag-handle');
+    const section = handle?.closest('.proposal-section');
+    if (!section || section.parentElement !== flexibleBlocks) {
+      event.preventDefault();
+      return;
+    }
+    state.draggingSection = section;
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', section.dataset.proposalSection || 'proposal-section');
+    requestAnimationFrame(() => section.classList.add('dragging'));
+  });
+
+  flexibleBlocks.addEventListener('dragover', (event) => {
+    if (state.draggingSubtopic) {
+      const targetSubtopic = event.target.closest('.flex-subtopic');
+      const targetContainer = targetSubtopic?.parentElement || event.target.closest('[data-flex-subtopics]');
+      if (!targetContainer || !targetContainer.hasAttribute('data-flex-subtopics') || targetSubtopic === state.draggingSubtopic || state.draggingSubtopic.contains(targetContainer)) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'move';
+      if (!targetSubtopic) {
+        targetContainer.appendChild(state.draggingSubtopic);
+      } else {
+        const targetRect = targetSubtopic.getBoundingClientRect();
+        const insertBefore = event.clientY < targetRect.top + (targetRect.height / 2);
+        targetContainer.insertBefore(state.draggingSubtopic, insertBefore ? targetSubtopic : targetSubtopic.nextElementSibling);
+      }
+      renumberFlexibleTopics();
+      return;
+    }
+    const dragging = state.draggingSection;
+    const target = event.target.closest('.proposal-section');
+    if (!dragging || !target || target === dragging || target.parentElement !== flexibleBlocks) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    const targetRect = target.getBoundingClientRect();
+    const insertBefore = event.clientY < targetRect.top + (targetRect.height / 2);
+    flexibleBlocks.insertBefore(dragging, insertBefore ? target : target.nextElementSibling);
+    renumberFlexibleTopics();
+  });
+
+  flexibleBlocks.addEventListener('drop', (event) => {
+    if (!state.draggingSection && !state.draggingSubtopic) return;
+    event.preventDefault();
+    finishSectionDrag();
+  });
+
+  flexibleBlocks.addEventListener('dragend', finishSectionDrag);
+}
+
+function finishSectionDrag() {
+  if (state.draggingSection) state.draggingSection.classList.remove('dragging');
+  if (state.draggingSubtopic) state.draggingSubtopic.classList.remove('dragging');
+  state.draggingSection = null;
+  state.draggingSubtopic = null;
+  renumberFlexibleTopics();
+}
+
 function bindProposalImport() {
   selectDocxButton.addEventListener('click', handleSelectDocx);
+  saveOpenAiKeyButton.addEventListener('click', handleSaveOpenAiKey);
+}
+
+async function loadOpenAiStatus() {
+  if (!window.supplyMarine?.getOpenAiStatus) {
+    openAiStatus.textContent = 'Configuração da OpenAI indisponível.';
+    return;
+  }
+  try {
+    const status = await window.supplyMarine.getOpenAiStatus();
+    selectDocxButton.disabled = !status.configured;
+    openAiStatus.textContent = status.configured
+      ? `GPT-5.6 Luna configurado${status.source === 'environment' ? ' pelo ambiente' : ''}.`
+      : 'Informe sua chave da API OpenAI para habilitar a importação.';
+  } catch (error) {
+    selectDocxButton.disabled = true;
+    openAiStatus.textContent = error.message || String(error);
+  }
+}
+
+async function handleSaveOpenAiKey() {
+  const apiKey = openAiKeyInput.value.trim();
+  saveOpenAiKeyButton.disabled = true;
+  openAiStatus.textContent = apiKey ? 'Protegendo a chave...' : 'Removendo a chave...';
+  try {
+    const status = await window.supplyMarine.salvarOpenAiKey(apiKey);
+    openAiKeyInput.value = '';
+    selectDocxButton.disabled = !status.configured;
+    openAiStatus.textContent = status.configured
+      ? 'Chave salva com criptografia. GPT-5.6 Luna pronto.'
+      : 'Chave removida. Informe uma chave para importar.';
+  } catch (error) {
+    openAiStatus.textContent = error.message || String(error);
+  } finally {
+    saveOpenAiKeyButton.disabled = false;
+  }
 }
 
 async function handleSelectDocx() {
@@ -135,7 +512,7 @@ async function handleSelectDocx() {
   }
 
   selectDocxButton.disabled = true;
-  docxStatus.textContent = 'Importando proposta Word...';
+  docxStatus.textContent = 'GPT-5.6 Luna está lendo a proposta...';
 
   try {
     const result = await window.supplyMarine.importarDocx(filePath);
@@ -145,7 +522,14 @@ async function handleSelectDocx() {
     state.lastOutputPath = '';
     resultPanel.hidden = true;
     document.querySelector('#form-title').textContent = 'Proposta importada';
-    docxStatus.textContent = `Importado: ${result.data?.numero_documento || filePath}`;
+    const doubtfulFields = result.campos_duvidosos || [];
+    const doubtful = doubtfulFields.length;
+    const tokens = result.ai?.total_tokens || 0;
+    const details = [
+      tokens ? `${tokens.toLocaleString('pt-BR')} tokens` : '',
+      doubtful ? `revisar: ${doubtfulFields.join(', ')}` : 'nenhuma dúvida sinalizada'
+    ].filter(Boolean).join(' · ');
+    docxStatus.textContent = `Importado com GPT-5.6 Luna: ${result.data?.numero_documento || filePath}${details ? ` · ${details}` : ''}`;
   } catch (error) {
     docxStatus.textContent = error.message || String(error);
   } finally {
@@ -165,20 +549,39 @@ function resetFormToDefaults() {
   form.reset();
   servicesList.innerHTML = '';
   technicalTeamList.innerHTML = '';
-  fixedAdditionalInfoList.innerHTML = '';
-  additionalInfoList.innerHTML = '';
-  priceTopics.innerHTML = '';
+  clearFlexibleBlocks();
+  restoreDefaultFixedSectionOrder();
+  updateFlexibleEmptyState();
   resultPanel.hidden = true;
   state.lastOutputPath = '';
   document.querySelector('#form-title').textContent = 'Formulário da proposta';
 
   addServiceDescription('');
   addTechnicalTeamMember('');
-  renderFixedAdditionalInfo();
-  addAdditionalInfo('');
-  DEFAULT_PRICE_TOPICS.forEach((topic) => addPriceTopic({ ...topic }, true));
+  applyExcludedFixedSections([]);
   fillDefaults();
   recalculate();
+}
+
+function setFixedSectionVisible(sectionId, visible) {
+  if (!['objeto', 'escopo'].includes(sectionId)) return;
+  const section = flexibleBlocks.querySelector(`:scope > [data-proposal-section="${sectionId}"]`);
+  const restoreButton = document.querySelector(`[data-restore-fixed-section="${sectionId}"]`);
+  if (!section || !restoreButton) return;
+
+  section.hidden = !visible;
+  restoreButton.hidden = visible;
+  section.querySelectorAll('input, textarea, select, button').forEach((control) => {
+    control.disabled = !visible;
+  });
+  if (visible) flexibleBlocks.appendChild(section);
+  renumberFlexibleTopics();
+  recalculate();
+}
+
+function applyExcludedFixedSections(excludedSections = []) {
+  const excluded = new Set(Array.isArray(excludedSections) ? excludedSections : []);
+  ['objeto', 'escopo'].forEach((sectionId) => setFixedSectionVisible(sectionId, !excluded.has(sectionId)));
 }
 
 function setValue(name, value) {
@@ -216,48 +619,557 @@ function addTechnicalTeamMember(value) {
   technicalTeamList.appendChild(row);
 }
 
-function addAdditionalInfo(value) {
-  const row = document.createElement('div');
-  row.className = 'stack-row';
-  row.innerHTML = `
-    <input data-additional-info value="${escapeHtml(value)}" placeholder="Informação adicional">
-    <button class="danger-action" type="button" title="Remover">x</button>
+function addFlexibleBlock(data = {}, afterElement = null) {
+  const type = Object.prototype.hasOwnProperty.call(FLEXIBLE_BLOCK_LABELS, data.tipo)
+    ? data.tipo
+    : 'texto';
+  const block = document.createElement('article');
+  block.className = 'form-section proposal-section flexible-block';
+  block.dataset.flexType = type;
+  block.dataset.flexId = data.id || createFlexibleId('bloco');
+  block.dataset.proposalSection = `flex:${block.dataset.flexId}`;
+  const normalizedTitle = type === 'texto' ? stripAutomaticNumber(data.titulo || '') : data.titulo || '';
+  const titleField = type === 'quebra_pagina'
+    ? '<span></span>'
+    : (type === 'lista' || type === 'preco'
+      ? `<div class="flex-topic-title"><strong data-flex-section-number></strong><span class="flex-fixed-section-title">${type === 'preco' ? 'PRE\u00c7O' : 'DOCUMENTA\u00c7\u00c3O'}</span></div>`
+      : `<div class="flex-topic-title"><strong data-flex-section-number></strong><input data-flex-title value="${escapeHtml(normalizedTitle)}" placeholder="${type === 'texto' ? 'Nome do t\u00f3pico' : 'T\u00edtulo da tabela'}"></div>`);
+
+  const moveButton = '<button class="section-drag-handle" type="button" draggable="true" title="Arrastar seção" aria-label="Arrastar seção">\u22ee\u22ee</button>';
+  const managementButtons = `
+    <button class="small-action" type="button" data-flex-action="up" title="Mover para cima">\u2191</button>
+    <button class="small-action" type="button" data-flex-action="down" title="Mover para baixo">\u2193</button>
+    <button class="small-action" type="button" data-flex-action="duplicate">Duplicar</button>
+    <button class="danger-action" type="button" data-flex-action="delete" title="Remover">x</button>
   `;
-  row.querySelector('button').addEventListener('click', () => row.remove());
-  additionalInfoList.appendChild(row);
+  const actionButtons = `${moveButton}${managementButtons}`;
+  block.innerHTML = type === 'preco'
+    ? `
+      <div class="section-heading additional-price-heading">
+        <div>
+          <p class="eyebrow"><span data-flex-section-number></span> Itens / preço</p>
+          <h2>Serviços e consumíveis</h2>
+        </div>
+        <div class="price-actions">
+          <button class="small-action" type="button" data-add-flex-price-topic>Adicionar tópico</button>
+          <div class="total-box">
+            <span>Total</span>
+            <strong data-flex-grand-total>R$ 0,00</strong>
+          </div>
+          <div class="flexible-block-actions">${managementButtons}${moveButton}</div>
+        </div>
+      </div>
+      <div class="flexible-block-body"></div>
+    `
+    : `
+      <div class="flexible-block-header${type === 'texto' || type === 'lista' ? ' fixed-style-flexible-header' : ''}">
+        <span class="flexible-block-kind">${FLEXIBLE_BLOCK_LABELS[type]}</span>
+        ${titleField}
+        <div class="flexible-block-actions">${actionButtons}</div>
+      </div>
+      <div class="flexible-block-body"></div>
+    `;
+
+  renderFlexibleBlockBody(block, data);
+  block.querySelector('[data-flex-action="up"]').addEventListener('click', () => {
+    if (block.previousElementSibling) {
+      flexibleBlocks.insertBefore(block, block.previousElementSibling);
+      renumberFlexibleTopics();
+    }
+  });
+  block.querySelector('[data-flex-action="down"]').addEventListener('click', () => {
+    if (block.nextElementSibling) {
+      flexibleBlocks.insertBefore(block.nextElementSibling, block);
+      renumberFlexibleTopics();
+    }
+  });
+  block.querySelector('[data-flex-action="duplicate"]').addEventListener('click', () => {
+    const copy = collectFlexibleBlock(block);
+    copy.id = createFlexibleId('bloco');
+    addFlexibleBlock(copy, block);
+  });
+  block.querySelector('[data-flex-action="delete"]').addEventListener('click', () => {
+    block.remove();
+    updateFlexibleEmptyState();
+    renumberFlexibleTopics();
+  });
+
+  if (afterElement?.parentElement === flexibleBlocks) {
+    flexibleBlocks.insertBefore(block, afterElement.nextElementSibling);
+  } else {
+    flexibleBlocks.appendChild(block);
+  }
+  updateFlexibleEmptyState();
+  renumberFlexibleTopics();
+  recalculate();
+  return block;
 }
 
-function renderFixedAdditionalInfo(data = {}) {
-  const saved = data.informacoes_adicionais_fixas;
-  const hasSavedValues = saved && typeof saved === 'object' && !Array.isArray(saved);
-  fixedAdditionalInfoList.innerHTML = '';
+function renderFlexibleBlockBody(block, data = {}) {
+  const body = block.querySelector('.flexible-block-body');
+  const type = block.dataset.flexType;
 
-  DEFAULT_FIXED_ADDITIONAL_INFO.forEach((definition) => {
-    if (hasSavedValues && !Object.prototype.hasOwnProperty.call(saved, definition.id)) {
-      return;
-    }
-    let value = hasSavedValues ? saved[definition.id] : definition.text;
-    if (!hasSavedValues && definition.id === '511' && data.prazo_execucao_dias) {
-      value = definition.text.replace('03 (três) dias', String(data.prazo_execucao_dias));
-    }
-    addFixedAdditionalInfo(definition, value);
+  if (type === 'texto') {
+    body.innerHTML = `
+      <div class="topic-editor-actions">
+        <button class="small-action" type="button" data-add-subtopic>Adicionar subt\u00f3pico</button>
+        <button class="small-action" type="button" data-add-topic-observation>Adicionar observa\u00e7\u00e3o</button>
+      </div>
+      <div class="topic-observations" data-topic-observations></div>
+      <div class="flex-subtopics" data-flex-subtopics></div>
+    `;
+    const observations = Array.isArray(data.observacoes) && data.observacoes.length
+      ? data.observacoes
+      : (data.conteudo ? String(data.conteudo).split(/\r?\n/).filter(Boolean) : []);
+    observations.forEach((observation) => addTopicObservation(body.querySelector('[data-topic-observations]'), observation));
+    const subtopicsContainer = body.querySelector('[data-flex-subtopics]');
+    (data.subtopicos || []).forEach((subtopic) => addFlexibleSubtopic(block, subtopic, subtopicsContainer));
+    body.querySelector('[data-add-topic-observation]').addEventListener('click', () => {
+      addTopicObservation(body.querySelector('[data-topic-observations]'), '');
+    });
+    body.querySelector('[data-add-subtopic]').addEventListener('click', () => addFlexibleSubtopic(block, {}));
+    return;
+  }
+
+  if (type === 'lista') {
+    body.innerHTML = `
+      <div class="document-list-editor">
+        <table class="document-list-table">
+          <thead>
+            <tr>
+              <th>DESCRI\u00c7\u00c3O</th>
+              <th>N\u00ba DO DOCUMENTO</th>
+              <th>DATA</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody data-flex-list></tbody>
+        </table>
+        <button class="small-action" type="button" data-add-flex-list-item>Adicionar linha</button>
+      </div>
+    `;
+    const rows = Array.isArray(data.linhas) && data.linhas.length
+      ? data.linhas
+      : (Array.isArray(data.itens) && data.itens.length
+        ? data.itens.map((item) => ({ descricao: typeof item === 'string' ? item : item?.descricao || item?.item || '' }))
+        : [{}]);
+    rows.forEach((row) => addFlexibleListItem(body, row));
+    body.querySelector('[data-add-flex-list-item]').addEventListener('click', () => addFlexibleListItem(body, {}));
+    return;
+  }
+
+  if (type === 'tabela') {
+    const tableData = normalizeFlexibleTable(data);
+    renderFlexibleTableEditor(block, tableData);
+    return;
+  }
+
+  if (type === 'preco') {
+    renderFlexiblePriceEditor(block, data);
+    return;
+  }
+
+  body.innerHTML = '<div class="page-break-preview">O conte\u00fado seguinte come\u00e7ar\u00e1 em uma nova p\u00e1gina.</div>';
+}
+
+function renderFlexiblePriceEditor(block, data = {}) {
+  const body = block.querySelector('.flexible-block-body');
+  const valueOrDefault = (field, fallback = '') => data[field] ?? form.elements[field]?.value ?? fallback;
+  body.innerHTML = `
+    <div class="flex-price-editor" data-flex-price-editor>
+      <div class="price-topics" data-flex-price-topics></div>
+      <div class="field-grid four-cols">
+        <label>Pre\u00e7o total<input data-flex-price-field="preco_total_numero" data-money></label>
+        <label class="wide">Pre\u00e7o por extenso<input data-flex-price-field="preco_total_extenso"></label>
+        <label>Moeda<input data-flex-price-field="moeda" value="${escapeHtml(valueOrDefault('moeda', 'Real R$'))}"></label>
+        <label>Validade da proposta<input data-flex-price-field="validade_proposta" value="${escapeHtml(valueOrDefault('validade_proposta', addDaysPtBr(30)))}" placeholder="dd/mm/aaaa"></label>
+        <label>Pagamento<input data-flex-price-field="pagamento" value="${escapeHtml(valueOrDefault('pagamento', '30 dias'))}" placeholder="30 dias"></label>
+        <label>Prazo de entrega<input data-flex-price-field="prazo_entrega" value="${escapeHtml(valueOrDefault('prazo_entrega', 'A combinar'))}" placeholder="A combinar"></label>
+        <label>Frete<input data-flex-price-field="frete" value="${escapeHtml(valueOrDefault('frete', 'FOB | Rio de Janeiro (RJ)'))}" placeholder="FOB | Rio de Janeiro (RJ)"></label>
+        <label>Impostos<input data-flex-price-field="impostos" value="${escapeHtml(valueOrDefault('impostos', 'inclusos no pre\u00e7o'))}"></label>
+      </div>
+    </div>
+  `;
+
+  const topicsContainer = body.querySelector('[data-flex-price-topics]');
+  const topics = Array.isArray(data.topicos_preco)
+    ? data.topicos_preco
+    : DEFAULT_PRICE_TOPICS.map((topic) => ({ ...topic }));
+  topics.forEach((topic) => addPriceTopic(topic, !Array.isArray(topic.itens) || !topic.itens.length, topicsContainer));
+  block.querySelector('[data-add-flex-price-topic]').addEventListener('click', () => addPriceTopic({}, false, topicsContainer));
+  recalculate();
+}
+
+function addTopicObservation(container, value) {
+  const row = document.createElement('div');
+  row.className = 'topic-observation-row';
+  row.innerHTML = `
+    <span class="topic-bullet">\u2022</span>
+    <input data-topic-observation value="${escapeHtml(typeof value === 'string' ? value : value?.texto || '')}" placeholder="Observa\u00e7\u00e3o">
+    <button class="danger-action" type="button" title="Remover observa\u00e7\u00e3o">x</button>
+  `;
+  row.querySelector('button').addEventListener('click', () => row.remove());
+  container.appendChild(row);
+}
+
+function addFlexibleSubtopic(block, data = {}, targetContainer = null) {
+  const container = targetContainer || block.querySelector('[data-flex-subtopics]');
+  if (!container) return null;
+  const subtopic = document.createElement('div');
+  subtopic.className = 'flex-subtopic';
+  subtopic.dataset.subtopicId = data.id || createFlexibleId('subtopico');
+  subtopic.innerHTML = `
+    <div class="flex-subtopic-heading">
+      <strong data-flex-subtopic-number></strong>
+      <input data-flex-subtopic-title value="${escapeHtml(stripAutomaticNumber(data.titulo || ''))}" placeholder="Nome do subt\u00f3pico">
+      <button class="subtopic-drag-handle" type="button" draggable="true" title="Arrastar subt\u00f3pico" aria-label="Arrastar subt\u00f3pico">\u22ee\u22ee</button>
+      <button class="danger-action" type="button" data-remove-subtopic title="Remover subt\u00f3pico">x</button>
+    </div>
+    <div class="topic-observations" data-subtopic-observations></div>
+    <div class="flex-subtopic-actions">
+      <button class="small-action" type="button" data-add-nested-subtopic>Adicionar subt\u00f3pico</button>
+      <button class="small-action" type="button" data-add-subtopic-observation>Adicionar observa\u00e7\u00e3o</button>
+    </div>
+    <div class="flex-subtopics" data-flex-subtopics></div>
+  `;
+  const observations = Array.isArray(data.observacoes) ? data.observacoes : [];
+  observations.forEach((observation) => addTopicObservation(subtopic.querySelector('[data-subtopic-observations]'), observation));
+  const nestedContainer = subtopic.querySelector('[data-flex-subtopics]');
+  (Array.isArray(data.subtopicos) ? data.subtopicos : []).forEach((nested) => {
+    addFlexibleSubtopic(block, nested, nestedContainer);
+  });
+  subtopic.querySelector('[data-add-nested-subtopic]').addEventListener('click', () => {
+    addFlexibleSubtopic(block, {}, nestedContainer);
+  });
+  subtopic.querySelector('[data-add-subtopic-observation]').addEventListener('click', () => {
+    addTopicObservation(subtopic.querySelector('[data-subtopic-observations]'), '');
+  });
+  subtopic.querySelector('[data-remove-subtopic]').addEventListener('click', () => {
+    subtopic.remove();
+    renumberFlexibleTopics();
+  });
+  container.appendChild(subtopic);
+  renumberFlexibleTopics();
+  return subtopic;
+}
+
+function addFlexibleListItem(body, value = {}) {
+  const list = body.querySelector('[data-flex-list]');
+  const rowData = typeof value === 'string' ? { descricao: value } : value;
+  const row = document.createElement('tr');
+  row.innerHTML = `
+    <td><input data-flex-list-field="descricao" value="${escapeHtml(rowData.descricao || '')}" placeholder="Descri\u00e7\u00e3o"></td>
+    <td><input data-flex-list-field="numero_documento" value="${escapeHtml(rowData.numero_documento || '')}" placeholder="N\u00ba do documento"></td>
+    <td><input data-flex-list-field="data" value="${escapeHtml(formatDateInput(rowData.data || ''))}" placeholder="dd/mm/aaaa" inputmode="numeric" maxlength="10" autocomplete="off"></td>
+    <td><button class="danger-action" type="button" title="Remover linha">x</button></td>
+  `;
+  bindDateMask(row.querySelector('[data-flex-list-field="data"]'));
+  row.querySelector('button').addEventListener('click', () => row.remove());
+  list.appendChild(row);
+}
+
+function bindDateMask(input) {
+  if (!input) return;
+  input.addEventListener('input', () => {
+    input.value = formatDateInput(input.value);
   });
 }
 
-function addFixedAdditionalInfo(definition, value) {
-  const row = document.createElement('div');
-  row.className = 'additional-info-row';
-  row.dataset.fixedAdditionalInfo = definition.id;
-  row.innerHTML = `
-    <span class="additional-info-number">${escapeHtml(definition.number)}</span>
-    <textarea rows="1" data-fixed-additional-text placeholder="Informação adicional">${escapeHtml(value)}</textarea>
-    <button class="danger-action" type="button" title="Remover">x</button>
-  `;
-  row.querySelector('button').addEventListener('click', () => row.remove());
-  fixedAdditionalInfoList.appendChild(row);
+function formatDateInput(value) {
+  const digits = String(value || '').replace(/\D/g, '').slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
 }
 
-function addPriceTopic(topic = {}, withDefaultItem = false) {
+function normalizeFlexibleTable(data = {}) {
+  const columns = Array.isArray(data.colunas) && data.colunas.length
+    ? data.colunas.map((column, index) => ({
+      id: column.id || createFlexibleId(`coluna_${index + 1}`),
+      nome: column.nome || ''
+    }))
+    : [
+      { id: createFlexibleId('coluna'), nome: 'Coluna 1' },
+      { id: createFlexibleId('coluna'), nome: 'Coluna 2' }
+    ];
+  const rows = Array.isArray(data.linhas) && data.linhas.length ? data.linhas : [{}];
+  return { colunas: columns, linhas: rows };
+}
+
+function renderFlexibleTableEditor(block, data) {
+  const body = block.querySelector('.flexible-block-body');
+  body.innerHTML = `
+    <div class="custom-table-editor">
+      <div class="custom-table-actions">
+        <button class="small-action" type="button" data-custom-table-action="column">Adicionar coluna</button>
+        <button class="small-action" type="button" data-custom-table-action="row">Adicionar linha</button>
+      </div>
+      <table class="custom-table">
+        <thead><tr></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  `;
+  const head = body.querySelector('thead tr');
+  const tableBody = body.querySelector('tbody');
+
+  data.colunas.forEach((column) => {
+    const cell = document.createElement('th');
+    cell.innerHTML = `
+      <div class="custom-column-heading">
+        <input data-custom-column-name data-column-id="${escapeHtml(column.id)}" value="${escapeHtml(column.nome)}" placeholder="Nome da coluna">
+        <button class="danger-action" type="button" data-remove-custom-column="${escapeHtml(column.id)}" title="Remover coluna">x</button>
+      </div>
+    `;
+    head.appendChild(cell);
+  });
+  head.insertAdjacentHTML('beforeend', '<th></th>');
+
+  data.linhas.forEach((rowData) => {
+    const row = document.createElement('tr');
+    data.colunas.forEach((column) => {
+      const cell = document.createElement('td');
+      const value = rowData?.valores?.[column.id] ?? rowData?.[column.id] ?? '';
+      cell.innerHTML = `<input data-custom-cell data-column-id="${escapeHtml(column.id)}" value="${escapeHtml(value)}">`;
+      row.appendChild(cell);
+    });
+    const actionCell = document.createElement('td');
+    actionCell.innerHTML = '<button class="danger-action" type="button" data-remove-custom-row title="Remover linha">x</button>';
+    actionCell.querySelector('button').addEventListener('click', () => row.remove());
+    row.appendChild(actionCell);
+    tableBody.appendChild(row);
+  });
+
+  body.querySelector('[data-custom-table-action="column"]').addEventListener('click', () => {
+    const current = readFlexibleTable(block, { keepEmptyRows: true });
+    current.colunas.push({ id: createFlexibleId('coluna'), nome: `Coluna ${current.colunas.length + 1}` });
+    renderFlexibleTableEditor(block, current);
+  });
+  body.querySelector('[data-custom-table-action="row"]').addEventListener('click', () => {
+    const current = readFlexibleTable(block, { keepEmptyRows: true });
+    current.linhas.push({ valores: {} });
+    renderFlexibleTableEditor(block, current);
+  });
+  body.querySelectorAll('[data-remove-custom-column]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const current = readFlexibleTable(block, { keepEmptyRows: true });
+      if (current.colunas.length <= 1) return;
+      const columnId = button.dataset.removeCustomColumn;
+      current.colunas = current.colunas.filter((column) => column.id !== columnId);
+      current.linhas.forEach((row) => delete row.valores[columnId]);
+      renderFlexibleTableEditor(block, current);
+    });
+  });
+}
+
+function readFlexibleTable(block, options = {}) {
+  const columns = Array.from(block.querySelectorAll('[data-custom-column-name]')).map((input) => ({
+    id: input.dataset.columnId,
+    nome: input.value.trim()
+  }));
+  const rows = Array.from(block.querySelectorAll('.custom-table tbody tr')).map((row) => {
+    const values = {};
+    row.querySelectorAll('[data-custom-cell]').forEach((input) => {
+      values[input.dataset.columnId] = input.value.trim();
+    });
+    return { valores: values };
+  });
+  return {
+    colunas: columns,
+    linhas: options.keepEmptyRows ? rows : rows.filter((row) => Object.values(row.valores).some(Boolean))
+  };
+}
+
+function collectFlexibleBlock(block) {
+  const type = block.dataset.flexType;
+  const result = {
+    id: block.dataset.flexId,
+    tipo: type,
+    titulo: block.querySelector('[data-flex-title]')?.value.trim() || ''
+  };
+  if (type === 'texto') {
+    result.observacoes = collectTopicObservations(block.querySelector('[data-topic-observations]'));
+    result.subtopicos = collectFlexibleSubtopics(block.querySelector('.flexible-block-body > [data-flex-subtopics]'));
+  } else if (type === 'lista') {
+    result.linhas = Array.from(block.querySelectorAll('[data-flex-list] tr'))
+      .map((row) => ({
+        descricao: row.querySelector('[data-flex-list-field="descricao"]').value.trim(),
+        numero_documento: row.querySelector('[data-flex-list-field="numero_documento"]').value.trim(),
+        data: row.querySelector('[data-flex-list-field="data"]').value.trim()
+      }))
+      .filter((row) => row.descricao || row.numero_documento || row.data);
+  } else if (type === 'tabela') {
+    Object.assign(result, readFlexibleTable(block));
+  } else if (type === 'preco') {
+    const topicsContainer = block.querySelector('[data-flex-price-topics]');
+    result.topicos_preco = collectPriceTopics(topicsContainer);
+    ['preco_total_numero', 'preco_total_extenso', 'moeda', 'validade_proposta', 'pagamento', 'prazo_entrega', 'frete', 'impostos'].forEach((field) => {
+      const input = block.querySelector(`[data-flex-price-field="${field}"]`);
+      result[field] = field === 'preco_total_numero' ? readNumber(input?.value) : (input?.value.trim() || '');
+    });
+  }
+  return result;
+}
+
+function collectFlexibleBlocks() {
+  return Array.from(flexibleBlocks.querySelectorAll('.flexible-block'))
+    .map(collectFlexibleBlock)
+    .filter((block) => {
+      if (block.tipo === 'quebra_pagina') return true;
+      if (block.titulo) return true;
+      if (block.tipo === 'texto') return block.observacoes.length > 0 || block.subtopicos.length > 0;
+      if (block.tipo === 'lista') return block.linhas.length > 0;
+      if (block.tipo === 'preco') return true;
+      return block.linhas.length > 0;
+    });
+}
+
+function collectModelStructure() {
+  return {
+    secoes_excluidas: ['objeto', 'escopo'].filter((sectionId) => {
+      const section = flexibleBlocks.querySelector(`:scope > [data-proposal-section="${sectionId}"]`);
+      return Boolean(section?.hidden);
+    }),
+    ordem_secoes: collectProposalSectionOrder(),
+    blocos_adicionais: Array.from(flexibleBlocks.querySelectorAll('.flexible-block'))
+      .map(collectModelBlock)
+  };
+}
+
+function collectModelBlock(block) {
+  const type = block.dataset.flexType;
+  const result = {
+    id: block.dataset.flexId,
+    tipo: type,
+    titulo: block.querySelector('[data-flex-title]')?.value.trim() || ''
+  };
+  if (type === 'texto') {
+    result.subtopicos = collectFlexibleSubtopics(block.querySelector('.flexible-block-body > [data-flex-subtopics]'));
+  } else if (type === 'tabela') {
+    result.colunas = readFlexibleTable(block, { keepEmptyRows: true }).colunas;
+  } else if (type === 'preco') {
+    result.topicos_preco = Array.from(block.querySelectorAll('.price-topic')).map((topic) => ({
+      titulo: topic.querySelector('[data-topic-title]')?.value.trim() || '',
+      tipo: topic.dataset.topicType || 'personalizado',
+      itens: []
+    }));
+  }
+  return result;
+}
+
+function collectTopicObservations(container) {
+  if (!container) return [];
+  return Array.from(container.querySelectorAll(':scope > .topic-observation-row [data-topic-observation]'))
+    .map((input) => input.value.trim())
+    .filter(Boolean);
+}
+
+function collectFlexibleSubtopics(container) {
+  if (!container) return [];
+  return Array.from(container.children)
+    .filter((element) => element.classList.contains('flex-subtopic'))
+    .map((subtopic) => {
+      const nestedContainer = Array.from(subtopic.children)
+        .find((element) => element.hasAttribute?.('data-flex-subtopics'));
+      return {
+        id: subtopic.dataset.subtopicId,
+        titulo: subtopic.querySelector(':scope > .flex-subtopic-heading [data-flex-subtopic-title]').value.trim(),
+        observacoes: collectTopicObservations(subtopic.querySelector(':scope > [data-subtopic-observations]')),
+        subtopicos: collectFlexibleSubtopics(nestedContainer)
+      };
+    })
+    .filter((subtopic) => subtopic.titulo || subtopic.observacoes.length || subtopic.subtopicos.length);
+}
+
+function updateFlexibleEmptyState() {
+  flexibleEmptyState.hidden = flexibleBlocks.querySelector('.flexible-block') !== null;
+}
+
+function renumberFlexibleTopics() {
+  let sectionNumber = 1;
+  Array.from(flexibleBlocks.children)
+    .filter((section) => section.classList.contains('proposal-section') && !section.hidden)
+    .forEach((section) => {
+    if (section.dataset.flexType === 'quebra_pagina') {
+      delete section.dataset.sectionNumber;
+      return;
+    }
+    section.dataset.sectionNumber = String(sectionNumber);
+    const fixedNumberTarget = section.querySelector('[data-section-number]');
+    if (fixedNumberTarget) fixedNumberTarget.textContent = `${sectionNumber}.`;
+    const numberTarget = section.querySelector('[data-flex-section-number]');
+    if (numberTarget) numberTarget.textContent = `${sectionNumber}.`;
+    section.querySelectorAll('[data-scope-subsection]').forEach((target) => {
+      target.textContent = `${sectionNumber}.${target.dataset.scopeSubsection}`;
+    });
+    renumberNestedSubtopics(section.querySelector('.flexible-block-body > [data-flex-subtopics]'), String(sectionNumber));
+    sectionNumber += 1;
+    });
+}
+
+function renumberNestedSubtopics(container, parentNumber) {
+  if (!container) return;
+  Array.from(container.children)
+    .filter((element) => element.classList.contains('flex-subtopic'))
+    .forEach((subtopic, index) => {
+      const number = `${parentNumber}.${index + 1}`;
+      const numberTarget = subtopic.querySelector(':scope > .flex-subtopic-heading [data-flex-subtopic-number]');
+      if (numberTarget) numberTarget.textContent = number;
+      const nestedContainer = Array.from(subtopic.children)
+        .find((element) => element.hasAttribute?.('data-flex-subtopics'));
+      renumberNestedSubtopics(nestedContainer, number);
+    });
+}
+
+function clearFlexibleBlocks() {
+  flexibleBlocks.querySelectorAll(':scope > .flexible-block').forEach((block) => block.remove());
+  updateFlexibleEmptyState();
+}
+
+function restoreDefaultFixedSectionOrder() {
+  DEFAULT_FIXED_SECTION_ORDER.forEach((sectionId) => {
+    const section = flexibleBlocks.querySelector(`:scope > [data-proposal-section="${sectionId}"]`);
+    if (section) flexibleBlocks.appendChild(section);
+  });
+  renumberFlexibleTopics();
+}
+
+function collectProposalSectionOrder() {
+  return Array.from(flexibleBlocks.children)
+    .filter((section) => section.classList.contains('proposal-section') && !section.hidden)
+    .map((section) => section.dataset.proposalSection)
+    .filter(Boolean);
+}
+
+function applyProposalSectionOrder(order) {
+  if (!Array.isArray(order) || !order.length) {
+    renumberFlexibleTopics();
+    return;
+  }
+  const sections = new Map(Array.from(flexibleBlocks.children)
+    .filter((section) => section.classList.contains('proposal-section'))
+    .map((section) => [section.dataset.proposalSection, section]));
+  order.forEach((sectionId) => {
+    const section = sections.get(sectionId);
+    if (!section) return;
+    flexibleBlocks.appendChild(section);
+    sections.delete(sectionId);
+  });
+  sections.forEach((section) => flexibleBlocks.appendChild(section));
+  renumberFlexibleTopics();
+}
+
+function stripAutomaticNumber(value) {
+  return String(value || '').replace(/^\s*(?:\d+\.\s+|\d+(?:\.\d+)+\s+)/, '').trim();
+}
+
+function createFlexibleId(prefix) {
+  const random = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return `${prefix}-${random}`;
+}
+
+function addPriceTopic(topic = {}, withDefaultItem = false, targetContainer) {
+  if (!targetContainer) return null;
   const defaults = DEFAULT_PRICE_TOPICS.find((item) => item.tipo === topic.tipo) || {};
   const title = topic.titulo || defaults.titulo || 'Novo t\u00f3pico';
   const type = topic.tipo || 'personalizado';
@@ -270,21 +1182,23 @@ function addPriceTopic(topic = {}, withDefaultItem = false) {
     <div class="topic-heading">
       <input class="topic-title-input" data-topic-title value="${escapeHtml(title)}" placeholder="Nome do t\u00f3pico">
       <div class="topic-actions">
-        <button class="small-action" type="button" data-add-topic-item>Adicionar</button>
         <button class="danger-action" type="button" data-remove-topic title="Remover t\u00f3pico">x</button>
       </div>
     </div>
     <div class="item-table"></div>
+    <div class="price-topic-footer">
+      <button class="small-action" type="button" data-add-topic-item>Adicionar linha</button>
+    </div>
   `;
 
   section.querySelector('[data-add-topic-item]').addEventListener('click', () => addItem(section));
   section.querySelector('[data-remove-topic]').addEventListener('click', () => {
     section.remove();
-    renumberItemCodes();
+    renumberItemCodes(targetContainer);
     recalculate();
   });
 
-  priceTopics.appendChild(section);
+  targetContainer.appendChild(section);
   const items = Array.isArray(topic.itens) ? topic.itens : [];
   items.forEach((item) => addItem(section, item));
   if (withDefaultItem || !items.length) {
@@ -296,6 +1210,7 @@ function addPriceTopic(topic = {}, withDefaultItem = false) {
 
 function addItem(topicElement, values = {}) {
   const container = topicElement.querySelector('.item-table');
+  const topicsContainer = topicElement.closest('.price-topics');
   if (!container.querySelector('.item-head')) {
     container.appendChild(createItemHeader());
   }
@@ -304,7 +1219,7 @@ function addItem(topicElement, values = {}) {
   row.className = 'item-row';
   row.dataset.itemType = topicElement.dataset.topicType || 'personalizado';
   row.innerHTML = `
-    <input data-field="item" value="${escapeHtml(values.item || nextItemCode())}">
+    <input data-field="item" value="${escapeHtml(values.item || nextItemCode(topicsContainer))}">
     <input data-field="descricao" value="${escapeHtml(values.descricao || '')}">
     <input data-field="ncm" value="${escapeHtml(values.ncm ?? topicElement.dataset.defaultNcm ?? '')}">
     <input data-field="quant" type="text" inputmode="decimal" value="${escapeHtml(values.quant ?? 1)}">
@@ -315,18 +1230,18 @@ function addItem(topicElement, values = {}) {
   `;
   row.querySelector('button').addEventListener('click', () => {
     row.remove();
-    renumberItemCodes();
+    renumberItemCodes(topicsContainer);
     recalculate();
   });
   container.appendChild(row);
-  renumberItemCodes();
+  renumberItemCodes(topicsContainer);
   recalculate();
 }
 
 function applyImportedData(result) {
   Object.entries(result.data || {}).forEach(([field, value]) => {
-    if (form.elements[field] && value != null && String(value).trim() !== '') {
-      form.elements[field].value = value;
+    if (form.elements[field] && value != null && !Array.isArray(value) && typeof value !== 'object') {
+      form.elements[field].value = String(value);
     }
   });
 
@@ -338,11 +1253,6 @@ function applyImportedData(result) {
       itens_servico: result.itens_servico || importedData.itens_servico,
       itens_consumiveis: result.itens_consumiveis || importedData.itens_consumiveis
     });
-
-  if (topics.length) {
-    priceTopics.innerHTML = '';
-    topics.forEach((topic) => addPriceTopic(topic));
-  }
 
   const descriptions = result.servicos_descricao || result.data?.servicos_descricao || [];
   if (descriptions.length) {
@@ -356,14 +1266,12 @@ function applyImportedData(result) {
     technicalTeam.forEach((item) => addTechnicalTeamMember(item));
   }
 
-  const additionalInfo = result.informacoes_adicionais || result.data?.informacoes_adicionais || [];
-  if (additionalInfo.length) {
-    additionalInfoList.innerHTML = '';
-    additionalInfo.forEach((item) => addAdditionalInfo(typeof item === 'string' ? item : item.item));
-  }
-  renderFixedAdditionalInfo(result.data || {});
+  clearFlexibleBlocks();
+  const migratedPrice = migrateLegacyPriceData(importedData, topics);
+  migratedPrice.blocks.forEach((block) => addFlexibleBlock(block));
+  applyProposalSectionOrder(migratedPrice.order);
+  updateFlexibleEmptyState();
 
-  renumberItemCodes();
   recalculate();
 }
 
@@ -374,6 +1282,40 @@ function legacyTopicsFromData(data = {}) {
       : data.itens_consumiveis || [];
     return { ...topic, itens };
   }).filter((topic) => topic.itens.length);
+}
+
+function migrateLegacyPriceData(data = {}, topics = []) {
+  const blocks = Array.isArray(data.blocos_adicionais)
+    ? data.blocos_adicionais.map((block) => ({ ...block }))
+    : [];
+  const originalOrder = Array.isArray(data.ordem_secoes) ? [...data.ordem_secoes] : [];
+  if (blocks.some((block) => block.tipo === 'preco') || !Array.isArray(topics) || !topics.length) {
+    return {
+      blocks,
+      order: originalOrder.filter((sectionId) => sectionId !== 'preco')
+    };
+  }
+
+  const id = createFlexibleId('preco-migrado');
+  blocks.push({
+    id,
+    tipo: 'preco',
+    topicos_preco: topics,
+    preco_total_numero: data.preco_total_numero || 0,
+    preco_total_extenso: data.preco_total_extenso || '',
+    moeda: data.moeda || 'Real R$',
+    validade_proposta: data.validade_proposta || '',
+    pagamento: data.pagamento || '',
+    prazo_entrega: data.prazo_entrega || '',
+    frete: data.frete || '',
+    impostos: data.impostos || 'inclusos no pre\u00e7o'
+  });
+  const migratedSectionId = `flex:${id}`;
+  const order = originalOrder.length
+    ? originalOrder.map((sectionId) => sectionId === 'preco' ? migratedSectionId : sectionId)
+    : [];
+  if (order.length && !order.includes(migratedSectionId)) order.push(migratedSectionId);
+  return { blocks, order };
 }
 
 function createItemHeader() {
@@ -392,34 +1334,43 @@ function createItemHeader() {
   return header;
 }
 
-function nextItemCode() {
-  const numbers = Array.from(document.querySelectorAll('.item-row [data-field="item"]'))
+function nextItemCode(container) {
+  if (!container) return '0001';
+  const numbers = Array.from(container.querySelectorAll('.item-row [data-field="item"]'))
     .map((input) => Number.parseInt(input.value, 10))
     .filter(Number.isFinite);
   const next = numbers.length ? Math.max(...numbers) + 1 : 1;
   return String(next).padStart(4, '0');
 }
 
-function renumberItemCodes() {
-  const rows = Array.from(priceTopics.querySelectorAll('.item-row'));
+function renumberItemCodes(container) {
+  if (!container) return;
+  const rows = Array.from(container.querySelectorAll('.item-row'));
   rows.forEach((row, index) => {
     row.querySelector('[data-field="item"]').value = String(index + 1).padStart(4, '0');
   });
 }
 
 function recalculate() {
+  document.querySelectorAll('[data-flex-price-editor]').forEach((editor) => {
+    const editorTotal = recalculatePriceRows(editor.querySelector('[data-flex-price-topics]'));
+    editor.closest('.flexible-block').querySelector('[data-flex-grand-total]').textContent = moneyFormatter.format(editorTotal);
+    editor.querySelector('[data-flex-price-field="preco_total_numero"]').value = moneyFormatter.format(editorTotal);
+    editor.querySelector('[data-flex-price-field="preco_total_extenso"]').value = moneyToWords(editorTotal);
+  });
+}
+
+function recalculatePriceRows(container) {
   let total = 0;
-  document.querySelectorAll('.item-row').forEach((row) => {
+  if (!container) return total;
+  container.querySelectorAll('.item-row').forEach((row) => {
     const quant = readNumber(row.querySelector('[data-field="quant"]').value);
     const unit = readNumber(row.querySelector('[data-field="valor_unit"]').value);
     const rowTotal = quant * unit;
     row.querySelector('[data-field="valor_total"]').value = numberFormatter.format(rowTotal);
     total += rowTotal;
   });
-
-  grandTotal.textContent = moneyFormatter.format(total);
-  form.elements.preco_total_numero.value = moneyFormatter.format(total);
-  form.elements.preco_total_extenso.value = moneyToWords(total);
+  return total;
 }
 
 async function handleSubmit(event) {
@@ -448,8 +1399,8 @@ async function handleSubmit(event) {
     const result = await window.supplyMarine.gerarDocx(data);
     state.lastOutputPath = result.outputPath;
     state.editingId = result.proposta?.id || state.editingId;
-    await loadHistory();
     showResult('Proposta pronta', result.outputPath);
+    await loadHistory();
   } catch (error) {
     showFormError([friendlyError(error)]);
   } finally {
@@ -472,25 +1423,18 @@ function validateProposal() {
 
   requiredFields.forEach(([name, message]) => {
     const field = form.elements[name];
-    if (!field || String(field.value || '').trim()) return;
+    if (!field || field.disabled || String(field.value || '').trim()) return;
     field.classList.add('invalid');
     messages.push(message);
     if (!focusTarget) focusTarget = field;
   });
 
+  const scopeSection = flexibleBlocks.querySelector(':scope > [data-proposal-section="escopo"]');
   const descriptions = Array.from(document.querySelectorAll('[data-service-description]'))
     .filter((input) => input.value.trim());
-  if (!descriptions.length) {
+  if (!scopeSection?.hidden && !descriptions.length) {
     messages.push('Adicione pelo menos uma descrição de serviço.');
     const field = document.querySelector('[data-service-description]');
-    field?.classList.add('invalid');
-    if (!focusTarget) focusTarget = field;
-  }
-
-  const items = collectPriceTopics().flatMap((topic) => topic.itens);
-  if (!items.length) {
-    messages.push('Adicione pelo menos um item de preço.');
-    const field = priceTopics.querySelector('[data-field="descricao"]');
     field?.classList.add('invalid');
     if (!focusTarget) focusTarget = field;
   }
@@ -544,6 +1488,11 @@ function collectFormData() {
     data[key] = String(value).trim();
   });
 
+  data.secoes_excluidas = ['objeto', 'escopo'].filter((sectionId) => {
+    const section = flexibleBlocks.querySelector(`:scope > [data-proposal-section="${sectionId}"]`);
+    return Boolean(section?.hidden);
+  });
+
   data.servicos_descricao = Array.from(document.querySelectorAll('[data-service-description]'))
     .map((input) => input.value.trim())
     .filter(Boolean);
@@ -551,28 +1500,20 @@ function collectFormData() {
     .map((input) => input.value.trim())
     .filter(Boolean);
   data.equipe_tecnica = data.equipe_tecnica_itens.join(' | ');
-  data.informacoes_adicionais = Array.from(document.querySelectorAll('[data-additional-info]'))
-    .map((input) => input.value.trim())
-    .filter(Boolean);
-  data.informacoes_adicionais_fixas = Object.fromEntries(
-    Array.from(fixedAdditionalInfoList.querySelectorAll('[data-fixed-additional-text]'))
-      .map((input) => [input.closest('[data-fixed-additional-info]')?.dataset.fixedAdditionalInfo, input.value.trim()])
-      .filter(([id, value]) => id && value)
-  );
-  data.prazo_execucao_dias = extractExecutionTime(data.informacoes_adicionais_fixas['511']);
-  data.topicos_preco = collectPriceTopics();
-  data.itens_servico = data.topicos_preco
-    .filter((topic) => topic.tipo === 'servico')
-    .flatMap((topic) => topic.itens);
-  data.itens_consumiveis = data.topicos_preco
-    .filter((topic) => topic.tipo === 'consumivel')
-    .flatMap((topic) => topic.itens);
-  data.preco_total_numero = readNumber(form.elements.preco_total_numero.value);
+  data.blocos_adicionais = collectFlexibleBlocks();
+  data.ordem_secoes = collectProposalSectionOrder();
+  data.topicos_preco = [];
+  data.itens_servico = [];
+  data.itens_consumiveis = [];
+  data.preco_total_numero = data.blocos_adicionais
+    .filter((block) => block.tipo === 'preco')
+    .reduce((sum, block) => sum + Number(block.preco_total_numero || 0), 0);
   return data;
 }
 
-function collectPriceTopics() {
-  return Array.from(priceTopics.querySelectorAll('.price-topic')).map((topicElement) => {
+function collectPriceTopics(container) {
+  if (!container) return [];
+  return Array.from(container.querySelectorAll('.price-topic')).map((topicElement) => {
     const itens = collectItems(topicElement);
     const titulo = topicElement.querySelector('[data-topic-title]').value.trim();
     return {
@@ -662,6 +1603,77 @@ async function loadHistory() {
   renderHistory();
 }
 
+async function loadModels() {
+  if (!window.supplyMarine?.listarModelos) return;
+  state.models = await window.supplyMarine.listarModelos();
+  renderModels();
+}
+
+function renderModels() {
+  modelEmptyState.hidden = state.models.length > 0;
+  modelList.innerHTML = state.models.map((model) => {
+    const blocks = model.estrutura?.blocos_adicionais?.length || 0;
+    const updated = formatModelDate(model.updatedAt || model.createdAt);
+    return `
+      <article class="model-card">
+        <div>
+          <h3>${escapeHtml(model.nome || 'Modelo sem nome')}</h3>
+          <p>${escapeHtml(model.empresa || '-')}</p>
+        </div>
+        <div class="model-card-meta">
+          <span>${blocks} ${blocks === 1 ? 'bloco adicional' : 'blocos adicionais'}</span>
+          <span>•</span>
+          <span>${escapeHtml(updated)}</span>
+        </div>
+        <div class="model-card-actions">
+          <button class="primary-action" type="button" data-model-action="use" data-id="${escapeHtml(model.id)}">Usar modelo</button>
+          <button class="danger-action" type="button" data-model-action="delete" data-id="${escapeHtml(model.id)}" title="Excluir modelo" aria-label="Excluir modelo">x</button>
+        </div>
+      </article>
+    `;
+  }).join('');
+  modelList.querySelectorAll('[data-model-action]').forEach((button) => {
+    button.addEventListener('click', () => handleModelAction(button.dataset.modelAction, button.dataset.id));
+  });
+}
+
+function formatModelDate(value) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString('pt-BR');
+}
+
+async function handleModelAction(action, id) {
+  const model = state.models.find((item) => item.id === id);
+  if (!model) return;
+  if (action === 'use') {
+    applyProposalModel(model);
+    return;
+  }
+  if (action === 'delete') {
+    const confirmed = window.confirm(`Excluir o modelo ${model.nome || ''}?`);
+    if (!confirmed) return;
+    await window.supplyMarine.excluirModelo(id);
+    await loadModels();
+  }
+}
+
+function applyProposalModel(model) {
+  resetFormToDefaults();
+  const structure = model.estrutura || {};
+  clearFlexibleBlocks();
+  (structure.blocos_adicionais || []).forEach((block) => addFlexibleBlock(block));
+  applyExcludedFixedSections(structure.secoes_excluidas);
+  applyProposalSectionOrder(structure.ordem_secoes);
+  updateFlexibleEmptyState();
+  state.editingId = '';
+  state.lastOutputPath = '';
+  document.querySelector('#form-title').textContent = `Nova proposta · ${model.nome || 'Modelo'}`;
+  resultPanel.hidden = true;
+  recalculate();
+  showView('form');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
 function renderHistory() {
   const query = historySearch.value.trim().toLowerCase();
   state.filteredProposals = state.proposals.filter((item) => {
@@ -740,9 +1752,8 @@ function loadProposalIntoForm(proposal, options = {}) {
   form.reset();
   servicesList.innerHTML = '';
   technicalTeamList.innerHTML = '';
-  fixedAdditionalInfoList.innerHTML = '';
-  additionalInfoList.innerHTML = '';
-  priceTopics.innerHTML = '';
+  clearFlexibleBlocks();
+  restoreDefaultFixedSectionOrder();
   resultPanel.hidden = true;
   state.lastOutputPath = options.duplicate ? '' : proposal.docxPath;
 
@@ -750,6 +1761,7 @@ function loadProposalIntoForm(proposal, options = {}) {
     ...data,
     numero_documento: options.duplicate ? `${data.numero_documento || proposal.numero_documento}-COPIA` : data.numero_documento
   });
+  applyExcludedFixedSections(data.secoes_excluidas);
 
   (data.servicos_descricao || []).forEach((item) => addServiceDescription(typeof item === 'string' ? item : item.item));
   if (!servicesList.children.length) addServiceDescription('');
@@ -757,17 +1769,13 @@ function loadProposalIntoForm(proposal, options = {}) {
   technicalTeamEntries(data).forEach((item) => addTechnicalTeamMember(item));
   if (!technicalTeamList.children.length) addTechnicalTeamMember('');
 
-  (data.informacoes_adicionais || []).forEach((item) => addAdditionalInfo(typeof item === 'string' ? item : item.item));
-  if (!additionalInfoList.children.length) addAdditionalInfo('');
-  renderFixedAdditionalInfo(data);
-
   const topics = Array.isArray(data.topicos_preco) && data.topicos_preco.length
     ? data.topicos_preco
     : legacyTopicsFromData(data);
-  topics.forEach((topic) => addPriceTopic(topic));
-  if (!priceTopics.querySelector('.price-topic')) {
-    DEFAULT_PRICE_TOPICS.forEach((topic) => addPriceTopic({ ...topic }, true));
-  }
+  const migratedPrice = migrateLegacyPriceData(data, topics);
+  migratedPrice.blocks.forEach((block) => addFlexibleBlock(block));
+  applyProposalSectionOrder(migratedPrice.order);
+  updateFlexibleEmptyState();
 
   document.querySelector('#form-title').textContent = options.duplicate ? 'Duplicar proposta' : 'Editar proposta';
   recalculate();
@@ -790,11 +1798,6 @@ function technicalTeamEntries(data = {}) {
     .split('|')
     .map((item) => item.trim())
     .filter(Boolean);
-}
-
-function extractExecutionTime(value) {
-  const match = String(value || '').match(/estimados em\s+(.+?),\s+incluindo/i);
-  return match ? match[1].trim() : '';
 }
 
 async function exportPdf(docxPath) {

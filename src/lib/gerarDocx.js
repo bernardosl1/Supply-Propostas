@@ -10,7 +10,7 @@ function formatCurrency(value) {
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL'
-  }).format(number);
+  }).format(number).replace(/\u00a0/g, ' ');
 }
 
 function formatNumber(value) {
@@ -33,8 +33,8 @@ function normalizeItems(items = []) {
       ...item,
       codigo: item.codigo || '',
       quant: String(item.quant ?? ''),
-      valor_unit: formatNumber(valorUnit),
-      valor_total: formatNumber(total)
+      valor_unit: formatCurrency(valorUnit),
+      valor_total: formatCurrency(total)
     };
   });
 }
@@ -71,7 +71,8 @@ function normalizeTopics(data) {
       ...topic,
       titulo: String(topic.titulo || '').toUpperCase(),
       itens,
-      total: formatNumber(totalNumber)
+      total: formatCurrency(totalNumber),
+      totalNumber
     };
   }).filter((topic) => topic.itens.length);
 }
@@ -84,9 +85,13 @@ function prepareData(data) {
   const itensConsumiveis = topicosPreco
     .filter((topic) => topic.tipo === 'consumivel')
     .flatMap((topic) => topic.itens);
-  const totalServicosNumber = sumItems(itensServico);
-  const totalConsumiveisNumber = sumItems(itensConsumiveis);
-  const totalTopicosNumber = topicosPreco.reduce((sum, topic) => sum + sumItems(topic.itens), 0);
+  const totalServicosNumber = topicosPreco
+    .filter((topic) => topic.tipo === 'servico')
+    .reduce((sum, topic) => sum + topic.totalNumber, 0);
+  const totalConsumiveisNumber = topicosPreco
+    .filter((topic) => topic.tipo === 'consumivel')
+    .reduce((sum, topic) => sum + topic.totalNumber, 0);
+  const totalTopicosNumber = topicosPreco.reduce((sum, topic) => sum + topic.totalNumber, 0);
   const totalNumber = data.preco_total_numero || totalTopicosNumber;
   const technicalTeamSource = Array.isArray(data.equipe_tecnica_itens) && data.equipe_tecnica_itens.length
     ? data.equipe_tecnica_itens
@@ -105,8 +110,8 @@ function prepareData(data) {
     topicos_preco: topicosPreco,
     itens_servico: itensServico,
     itens_consumiveis: itensConsumiveis,
-    total_servicos: formatNumber(totalServicosNumber),
-    total_consumiveis: formatNumber(totalConsumiveisNumber),
+    total_servicos: formatCurrency(totalServicosNumber),
+    total_consumiveis: formatCurrency(totalConsumiveisNumber),
     preco_total_formatado: formatCurrency(totalNumber),
     preco_total_numero: formatCurrency(totalNumber),
     preco_total_sem_moeda: formatNumber(totalNumber)
@@ -120,6 +125,7 @@ function gerarDocx(data, outputPath) {
 
   const content = fs.readFileSync(templatePath);
   const zip = new PizZip(content);
+  normalizeTemplateCurrencyCells(zip);
   const doc = new Docxtemplater(zip, {
     paragraphLoop: true,
     linebreaks: true,
@@ -150,7 +156,8 @@ function injectAdditionalBlocks(zip, proposalData = {}) {
   if (!documentFile) return;
 
   const normalizedPriceHeaderXml = normalizeOfficialPriceHeader(documentFile.asText());
-  const originalDocumentXml = normalizeOptionalServiceLocation(normalizedPriceHeaderXml, proposalData);
+  const normalizedFieldAlignmentXml = normalizeFixedFieldAlignment(normalizedPriceHeaderXml);
+  const originalDocumentXml = normalizeOptionalServiceLocation(normalizedFieldAlignmentXml, proposalData);
   const sectionLineXml = extractSectionLineParagraph(originalDocumentXml);
   const documentXml = removeFixedAdditionalInfoSection(originalDocumentXml);
   const rebuiltDocument = rebuildOrderedDocumentSections(
@@ -161,6 +168,63 @@ function injectAdditionalBlocks(zip, proposalData = {}) {
     proposalData.secoes_excluidas
   );
   zip.file('word/document.xml', rebuiltDocument);
+}
+
+function normalizeTemplateCurrencyCells(zip) {
+  const documentFile = zip.file('word/document.xml');
+  if (!documentFile) return;
+
+  let documentXml = documentFile.asText();
+  ['{valor_unit}', '{valor_total}', '{total}'].forEach((tag) => {
+    const tagIndex = documentXml.indexOf(tag);
+    if (tagIndex < 0) return;
+
+    const currencyTag = '<w:t>R$</w:t>';
+    const currencyIndex = documentXml.lastIndexOf(currencyTag, tagIndex);
+    if (currencyIndex < 0 || tagIndex - currencyIndex > 700) return;
+
+    documentXml = `${documentXml.slice(0, currencyIndex)}<w:t></w:t>${documentXml.slice(currencyIndex + currencyTag.length)}`;
+  });
+
+  zip.file('word/document.xml', documentXml);
+}
+
+function normalizeFixedFieldAlignment(documentXml) {
+  const objectHeadingIndex = documentXml.indexOf('OBJETO');
+  const scopeHeadingIndex = documentXml.indexOf('ESCOPO DE FORNECIMENTO', objectHeadingIndex);
+  if (objectHeadingIndex < 0 || scopeHeadingIndex < 0) return documentXml;
+
+  const objectSectionStart = findParagraphStart(documentXml, objectHeadingIndex);
+  const scopeSectionStart = findParagraphStart(documentXml, scopeHeadingIndex);
+  if (objectSectionStart < 0 || scopeSectionStart <= objectSectionStart) return documentXml;
+
+  const objectSection = documentXml.slice(objectSectionStart, scopeSectionStart).replace(
+    /<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/g,
+    (paragraphXml) => normalizeFirstLineIndent(paragraphXml)
+  );
+
+  return `${documentXml.slice(0, objectSectionStart)}${objectSection}${documentXml.slice(scopeSectionStart)}`;
+}
+
+function normalizeFirstLineIndent(paragraphXml) {
+  return paragraphXml.replace(/<w:ind\b([^>]*)\/>/, (indentXml, attributes) => {
+    const firstLineMatch = attributes.match(/\sw:firstLine="(-?\d+)"/);
+    if (!firstLineMatch) return indentXml;
+
+    const currentLeftMatch = attributes.match(/\sw:left="(-?\d+)"/);
+    const currentLeft = Number(currentLeftMatch?.[1] || 0);
+    const firstLine = Number(firstLineMatch[1] || 0);
+    const alignedLeft = currentLeft + firstLine;
+    let normalizedAttributes = attributes.replace(/\sw:firstLine="-?\d+"/, '');
+
+    if (currentLeftMatch) {
+      normalizedAttributes = normalizedAttributes.replace(/\sw:left="-?\d+"/, ` w:left="${alignedLeft}"`);
+    } else {
+      normalizedAttributes += ` w:left="${alignedLeft}"`;
+    }
+
+    return `<w:ind${normalizedAttributes}/>`;
+  });
 }
 
 function normalizeOptionalServiceLocation(documentXml, proposalData = {}) {
@@ -473,7 +537,7 @@ function renderNumberedTopicHeading(number, title, sectionLineXml = '') {
   return `<w:p>
     <w:pPr>
       <w:pStyle w:val="PargrafodaLista"/><w:keepNext/>
-      <w:ind w:left="425"/><w:spacing w:before="240" w:after="0"/>
+      <w:ind w:left="425" w:right="799"/><w:spacing w:before="240" w:after="0"/>
       <w:contextualSpacing w:val="0"/>
     </w:pPr>
     <w:r><w:rPr><w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/><w:b/><w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr><w:t xml:space="preserve">${number}.  ${escapeXml(String(title).toUpperCase())}</w:t></w:r>
@@ -482,9 +546,11 @@ function renderNumberedTopicHeading(number, title, sectionLineXml = '') {
 }
 
 function renderSubtopicHeading(number, title, depth = 1) {
-  const leftIndent = 680 + (Math.max(1, depth) - 1) * 280;
+  const numberIndent = 680 + (Math.max(1, depth) - 1) * 280;
+  const hangingIndent = 284;
+  const textIndent = numberIndent + hangingIndent;
   return `<w:p>
-    <w:pPr><w:pStyle w:val="PargrafodaLista"/><w:keepNext/><w:spacing w:before="80" w:after="30"/><w:ind w:left="${leftIndent}"/></w:pPr>
+    <w:pPr><w:pStyle w:val="PargrafodaLista"/><w:keepNext/><w:spacing w:before="80" w:after="30"/><w:ind w:left="${textIndent}" w:right="799" w:hanging="${hangingIndent}"/></w:pPr>
     <w:r><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:eastAsia="Times New Roman" w:cs="Calibri"/><w:color w:val="000000"/><w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr><w:t xml:space="preserve">${escapeXml(number)}  ${escapeXml(title)}</w:t></w:r>
   </w:p>`;
 }
@@ -497,7 +563,7 @@ function renderTopicObservation(value, nestedDepth = 0) {
     <w:pPr>
       <w:pStyle w:val="PargrafodaLista"/>
       <w:numPr><w:ilvl w:val="1"/><w:numId w:val="1"/></w:numPr>
-      <w:ind w:left="${leftIndent}" w:hanging="227"/><w:spacing w:after="20"/>
+      <w:ind w:left="${leftIndent}" w:right="799" w:hanging="227"/><w:spacing w:after="20"/>
     </w:pPr>
     <w:r><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:eastAsia="Times New Roman" w:cs="Calibri"/><w:color w:val="000000"/><w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr><w:t xml:space="preserve">${escapeXml(String(text).trim())}</w:t></w:r>
   </w:p>`;
@@ -640,7 +706,7 @@ function renderAdditionalPrice(block, sectionNumber) {
   const calculatedTotal = topics.reduce((sum, topic) => sum + topic.totalNumber, 0);
   const requestedTotal = Number(block.preco_total_numero);
   const totalNumber = Number.isFinite(requestedTotal) && requestedTotal !== 0 ? requestedTotal : calculatedTotal;
-  const totalText = formatCurrency(totalNumber).replace(/\u00a0/g, ' ');
+  const totalText = formatCurrency(totalNumber);
   const totalInWords = String(block.preco_total_extenso || '').trim();
   const tableWidth = ADDITIONAL_PRICE_COLUMNS.reduce((sum, width) => sum + width, 0);
   const numberSeed = Math.max(0, Math.trunc(Number(sectionNumber) || 0));
@@ -668,12 +734,12 @@ function renderAdditionalPrice(block, sectionNumber) {
       renderAdditionalPriceCell(renderAdditionalPriceParagraph(item.ncm, { align: 'center' }), ADDITIONAL_PRICE_COLUMNS[2], { borders: PRICE_ROW_BOTTOM }),
       renderAdditionalPriceCell(renderAdditionalPriceParagraph(item.quant, { align: 'center' }), ADDITIONAL_PRICE_COLUMNS[3], { borders: PRICE_ROW_BOTTOM }),
       renderAdditionalPriceCell(renderAdditionalPriceParagraph(item.un, { align: 'center' }), ADDITIONAL_PRICE_COLUMNS[4], { borders: PRICE_ROW_BOTTOM }),
-      renderAdditionalPriceCell(renderAdditionalPriceParagraph(`R$${item.valor_unit}`, { align: 'right' }), ADDITIONAL_PRICE_COLUMNS[5], { borders: PRICE_ROW_BOTTOM }),
-      renderAdditionalPriceCell(renderAdditionalPriceParagraph(`R$${item.valor_total}`, { align: 'right' }), ADDITIONAL_PRICE_COLUMNS[6], { borders: PRICE_ROW_BOTTOM })
+      renderAdditionalPriceCell(renderAccountingPriceParagraph(item.valor_unit, ADDITIONAL_PRICE_COLUMNS[5]), ADDITIONAL_PRICE_COLUMNS[5], { borders: PRICE_ROW_BOTTOM }),
+      renderAdditionalPriceCell(renderAccountingPriceParagraph(item.valor_total, ADDITIONAL_PRICE_COLUMNS[6]), ADDITIONAL_PRICE_COLUMNS[6], { borders: PRICE_ROW_BOTTOM })
     ])).join('');
     const totalRow = renderAdditionalPriceRow([
       renderAdditionalPriceCell(renderAdditionalPriceParagraph(`TOTAL ${topic.titulo}:`, { bold: true, align: 'right' }), ADDITIONAL_PRICE_COLUMNS.slice(0, 6).reduce((sum, width) => sum + width, 0), { gridSpan: 6, borders: PRICE_TOTAL_TOP }),
-      renderAdditionalPriceCell(renderAdditionalPriceParagraph(`R$${formatNumber(topic.totalNumber)}`, { bold: true, align: 'right' }), ADDITIONAL_PRICE_COLUMNS[6], { borders: PRICE_TOTAL_TOP })
+      renderAdditionalPriceCell(renderAccountingPriceParagraph(formatCurrency(topic.totalNumber), ADDITIONAL_PRICE_COLUMNS[6], { bold: true }), ADDITIONAL_PRICE_COLUMNS[6], { borders: PRICE_TOTAL_TOP })
     ]);
     return `${titleRow}${itemRows}${totalRow}`;
   }).join('');
@@ -728,6 +794,22 @@ function renderAdditionalPriceParagraph(value, options = {}) {
   const alignment = options.align ? `<w:jc w:val="${options.align}"/>` : '';
   const bold = options.bold ? '<w:b/>' : '';
   return `<w:p><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/>${alignment}</w:pPr><w:r><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/>${bold}<w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr><w:t xml:space="preserve">${escapeXml(value ?? '')}</w:t></w:r></w:p>`;
+}
+
+function renderAccountingPriceParagraph(value, cellWidth, options = {}) {
+  const formatted = String(value || formatCurrency(0)).trim();
+  const match = formatted.match(/^(-?)R\$\s*(.*)$/);
+  const amount = match ? `${match[1]}${match[2]}` : formatted;
+  const symbol = match ? 'R$' : '';
+  const bold = options.bold ? '<w:b/>' : '';
+  const tabPosition = Math.max(0, Number(cellWidth || 0) - 140);
+  const runProperties = `<w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/>${bold}<w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr>`;
+
+  return `<w:p><w:pPr><w:tabs><w:tab w:val="right" w:pos="${tabPosition}"/></w:tabs><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr>
+    <w:r>${runProperties}<w:t>${escapeXml(symbol)}</w:t></w:r>
+    <w:r>${runProperties}<w:tab/></w:r>
+    <w:r>${runProperties}<w:t>${escapeXml(amount)}</w:t></w:r>
+  </w:p>`;
 }
 
 function renderAdditionalPriceLabelValue(label, value) {

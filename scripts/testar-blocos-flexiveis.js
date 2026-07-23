@@ -3,9 +3,25 @@ const os = require('node:os');
 const path = require('node:path');
 const PizZip = require('pizzip');
 const { DOMParser } = require('@xmldom/xmldom');
-const { gerarDocx } = require('../src/lib/gerarDocx');
+const { gerarDocx, prepareData } = require('../src/lib/gerarDocx');
 
 const base = JSON.parse(fs.readFileSync(path.join(__dirname, 'dados-teste.json'), 'utf8'));
+const currencyData = prepareData({
+  topicos_preco: [{
+    titulo: 'SERVI\u00c7OS',
+    tipo: 'servico',
+    itens: [
+      { quant: 1, valor_unit: 372, valor_total: 372 },
+      { quant: 1, valor_unit: -6708.5, valor_total: -6708.5 }
+    ]
+  }],
+  preco_total_numero: -6336.5
+});
+assert(currencyData.topicos_preco[0].itens[0].valor_unit === 'R$ 372,00', 'Valor unit\u00e1rio positivo fora do padr\u00e3o monet\u00e1rio');
+assert(currencyData.topicos_preco[0].itens[1].valor_unit === '-R$ 6.708,50', 'Valor unit\u00e1rio negativo fora do padr\u00e3o monet\u00e1rio');
+assert(currencyData.topicos_preco[0].total === '-R$ 6.336,50', 'Total do t\u00f3pico fora do padr\u00e3o monet\u00e1rio');
+assert(currencyData.preco_total_numero === '-R$ 6.336,50', 'Pre\u00e7o total fora do padr\u00e3o monet\u00e1rio');
+
 const tests = [
   { name: 'legacy', data: base },
   {
@@ -146,6 +162,16 @@ for (const test of tests) {
     assert(xml.includes(base.empresa_cliente), `${test.name}: dados comerciais ausentes`);
     assert(!xml.includes('INFORMA\u00c7\u00d5ES ADICIONAIS'), `${test.name}: se\u00e7\u00e3o fixa de informa\u00e7\u00f5es adicionais ainda presente`);
     assert(!xml.includes('Prazo de Execu\u00e7\u00e3o'), `${test.name}: conte\u00fado fixo de informa\u00e7\u00f5es adicionais ainda presente`);
+    if (!test.data.secoes_excluidas?.includes('objeto')) {
+      const objectValueIndex = xml.indexOf(String(base.objeto).split('&')[0].trim());
+      const objectParagraphStart = Math.max(
+        xml.lastIndexOf('<w:p>', objectValueIndex),
+        xml.lastIndexOf('<w:p ', objectValueIndex)
+      );
+      const objectParagraph = xml.slice(objectParagraphStart, xml.indexOf('</w:p>', objectValueIndex));
+      assert(objectParagraph.includes('<w:ind w:right="799" w:left="709"/>'), `${test.name}: Objeto fora das margens sim\u00e9tricas`);
+      assert(!objectParagraph.includes('w:firstLine='), `${test.name}: quebra de linha do Objeto volta para fora da margem`);
+    }
     if (test.name === 'legacy') {
       assert(!xml.includes('DESCRI\u00c7\u00c3O DOS ITENS'), 'Tabela fixa de pre\u00e7o ainda presente no documento');
       assert(!xml.includes('PRE\u00c7O TOTAL'), 'Resumo fixo de pre\u00e7o ainda presente no documento');
@@ -170,7 +196,7 @@ for (const test of tests) {
     }
 
     if (test.name === 'flexible') {
-      ['4.  CRONOGRAMA', '4.1  Etapas do servi\u00e7o', '4.1.1  Detalhamento da etapa', 'Inspe\u00e7\u00e3o inicial', 'Mobiliza\u00e7\u00e3o', '5.  DOCUMENTA\u00c7\u00c3O', 'DESCRI\u00c7\u00c3O', 'N\u00ba DO DOCUMENTO', 'Solicita\u00e7\u00e3o de cota\u00e7\u00e3o', 'SC35085 | RC73960 | Cota\u00e7\u00e3o 167383', '14/07/2026', '6.  PRE\u00c7O', 'LOCA\u00c7\u00c3O', 'Equipamento especial', 'R$1.250,00', 'R$ 2.500,00 (Dois mil e quinhentos reais)', 'Validade da Proposta:', '30/08/2026', '7.  EQUIPAMENTOS', 'Bomba A', '8.  OBSERVA\u00c7\u00d5ES', 'Conte\u00fado ap\u00f3s quebra.'].forEach((value) => {
+      ['4.  CRONOGRAMA', '4.1  Etapas do servi\u00e7o', '4.1.1  Detalhamento da etapa', 'Inspe\u00e7\u00e3o inicial', 'Mobiliza\u00e7\u00e3o', '5.  DOCUMENTA\u00c7\u00c3O', 'DESCRI\u00c7\u00c3O', 'N\u00ba DO DOCUMENTO', 'Solicita\u00e7\u00e3o de cota\u00e7\u00e3o', 'SC35085 | RC73960 | Cota\u00e7\u00e3o 167383', '14/07/2026', '6.  PRE\u00c7O', 'LOCA\u00c7\u00c3O', 'Equipamento especial', '1.250,00', 'R$ 2.500,00 (Dois mil e quinhentos reais)', 'Validade da Proposta:', '30/08/2026', '7.  EQUIPAMENTOS', 'Bomba A', '8.  OBSERVA\u00c7\u00d5ES', 'Conte\u00fado ap\u00f3s quebra.'].forEach((value) => {
         assert(xml.includes(value), `Conte\u00fado flex\u00edvel ausente: ${value}`);
       });
       assert(xml.indexOf('Bomba A') < xml.indexOf('Atenciosamente'), 'Blocos inseridos depois da assinatura');
@@ -204,6 +230,15 @@ for (const test of tests) {
       );
       const additionalItemParagraph = xml.slice(additionalItemParagraphStart, xml.indexOf('</w:p>', additionalPriceIndex));
       assert(!additionalItemParagraph.includes('<w:b/>'), 'Item da se\u00e7\u00e3o adicional de pre\u00e7o ficou em negrito');
+      const accountingValueIndex = xml.indexOf('1.250,00', additionalPriceIndex);
+      const accountingParagraphStart = Math.max(
+        xml.lastIndexOf('<w:p>', accountingValueIndex),
+        xml.lastIndexOf('<w:p ', accountingValueIndex)
+      );
+      const accountingParagraph = xml.slice(accountingParagraphStart, xml.indexOf('</w:p>', accountingValueIndex));
+      assert(accountingParagraph.includes('<w:t>R$</w:t>'), 'S\u00edmbolo monet\u00e1rio n\u00e3o ficou em uma posi\u00e7\u00e3o cont\u00e1bil separada');
+      assert(accountingParagraph.includes('<w:tab/>'), 'Tabula\u00e7\u00e3o cont\u00e1bil ausente no valor unit\u00e1rio');
+      assert(accountingParagraph.includes('<w:tab w:val="right" w:pos="1175"/>'), 'Casas decimais do valor unit\u00e1rio sem alinhamento fixo');
       const additionalTotalIndex = xml.indexOf('TOTAL LOCA\u00c7\u00c3O:', additionalPriceIndex);
       const additionalTotalParagraphStart = Math.max(
         xml.lastIndexOf('<w:p>', additionalTotalIndex),
@@ -234,6 +269,21 @@ for (const test of tests) {
       assert(topicSection.includes('<w:sz w:val="16"/>'), 'Tamanho padr\u00e3o do t\u00f3pico ausente');
       assert(topicSection.includes('strokecolor="#002060"'), 'Cor da linha do t\u00f3pico incorreta');
       assert(topicSection.includes('from="19.55pt,1.55pt" to="528.05pt,2.3pt"'), 'Comprimento ou posi\u00e7\u00e3o da linha do t\u00f3pico incorreto');
+      const subtopicIndex = xml.indexOf('4.1  Etapas do servi\u00e7o');
+      const subtopicParagraphStart = Math.max(
+        xml.lastIndexOf('<w:p>', subtopicIndex),
+        xml.lastIndexOf('<w:p ', subtopicIndex)
+      );
+      const subtopicParagraph = xml.slice(subtopicParagraphStart, xml.indexOf('</w:p>', subtopicIndex));
+      assert(subtopicParagraph.includes('<w:ind w:left="964" w:right="799" w:hanging="284"/>'), 'Quebra de linha do subt\u00f3pico adicional fora das margens');
+      const observationIndex = xml.indexOf('Execu\u00e7\u00e3o em duas etapas.');
+      const observationParagraphStart = Math.max(
+        xml.lastIndexOf('<w:p>', observationIndex),
+        xml.lastIndexOf('<w:p ', observationIndex)
+      );
+      const observationParagraph = xml.slice(observationParagraphStart, xml.indexOf('</w:p>', observationIndex));
+      assert(observationParagraph.includes('w:right="799"'), 'Texto do t\u00f3pico adicional ultrapassa a margem direita');
+      assert(!observationParagraph.includes('<w:keepNext/>'), 'Pagina\u00e7\u00e3o normal do t\u00f3pico adicional foi alterada');
     }
 
     if (test.name === 'reordered') {

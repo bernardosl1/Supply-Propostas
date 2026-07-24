@@ -154,7 +154,21 @@ function createWindow() {
               document.querySelector('[name="empresa_cliente"]').value = 'Cliente Smoke';
               document.querySelector('[name="numero_documento"]').value = 'SMOKE-001';
               document.querySelector('[name="responsavel_nome"]').value = 'Responsavel Smoke';
-              document.querySelector('[name="objeto"]').value = 'Teste de geração automática';
+              const objectSection = document.querySelector('[data-proposal-section="objeto"]');
+              objectSection.querySelector('[data-topic-observation]').value = 'Teste de geração automática';
+              objectSection.querySelector('[data-add-object-observation]').click();
+              objectSection.querySelectorAll('[data-topic-observation]')[1].value = 'Segunda observação do objeto';
+              const objectAddButton = objectSection.querySelector('[data-add-object-observation]');
+              const objectFirstRow = objectSection.querySelector('.topic-observation-row');
+              const objectInputHeight = objectFirstRow.querySelector('input').getBoundingClientRect().height;
+              const objectDeleteHeight = objectFirstRow.querySelector('.danger-action').getBoundingClientRect().height;
+              if (!objectAddButton.closest('.section-heading')
+                || objectInputHeight > 35
+                || objectDeleteHeight > 31
+                || objectSection.getBoundingClientRect().height > 160) {
+                reject(new Error('Bloco Objeto n\u00e3o ficou compacto e alinhado'));
+                return;
+              }
               document.querySelector('[data-service-description]').value = 'Serviço de teste';
               document.querySelector('[data-add-flex-block="texto"]').click();
               const topic = document.querySelector('#proposal-sections .flexible-block:last-child');
@@ -171,6 +185,32 @@ function createWindow() {
               nestedSubtopic.querySelector('[data-flex-subtopic-title]').value = 'Detalhamento';
               nestedSubtopic.querySelector('[data-add-subtopic-observation]').click();
               nestedSubtopic.querySelector('[data-subtopic-observations] [data-topic-observation]').value = 'Etapa interna';
+              nestedSubtopic.querySelector('[data-add-nested-subtopic]').click();
+              const nestedSiblings = firstSubtopic.querySelectorAll(':scope > [data-flex-subtopics] > .flex-subtopic');
+              nestedSiblings[1].querySelector('[data-flex-subtopic-title]').value = 'Encerramento';
+              if (nestedSiblings.length !== 2
+                || nestedSubtopic.querySelector('[data-add-nested-subtopic]').textContent.trim() !== '+ Mesmo n\u00edvel'
+                || nestedSiblings[0].querySelector('[data-flex-subtopic-number]').textContent !== '4.1.1'
+                || nestedSiblings[1].querySelector('[data-flex-subtopic-number]').textContent !== '4.1.2') {
+                reject(new Error('Subt\u00f3picos adicionais n\u00e3o foram criados no mesmo n\u00edvel'));
+                return;
+              }
+              const topicAddSubtopic = topic.querySelector('[data-add-subtopic]');
+              const firstSubtopicTitle = firstSubtopic.querySelector('[data-flex-subtopic-title]');
+              const firstSubtopicActions = firstSubtopic.querySelector('.flex-subtopic-actions');
+              const firstTitleBounds = firstSubtopicTitle.getBoundingClientRect();
+              const firstActionsBounds = firstSubtopicActions.getBoundingClientRect();
+              if (!topicAddSubtopic.closest('.flexible-block-header')
+                || topic.querySelector('.topic-editor-actions')
+                || firstSubtopicActions.parentElement !== firstSubtopic.querySelector('.flex-subtopic-heading')
+                || Math.abs(
+                  (firstTitleBounds.top + (firstTitleBounds.height / 2))
+                  - (firstActionsBounds.top + (firstActionsBounds.height / 2))
+                ) > 2
+                || topic.scrollWidth > topic.clientWidth + 1) {
+                reject(new Error('T\u00f3pico adicional n\u00e3o ficou compacto e organizado'));
+                return;
+              }
               document.querySelector('[data-add-flex-block="lista"]').click();
               const documentList = document.querySelector('#proposal-sections .flexible-block:last-child');
               documentList.querySelector('[data-flex-list-field="descricao"]').value = 'Solicitacao de cotacao';
@@ -179,6 +219,73 @@ function createWindow() {
               documentList.querySelector('[data-flex-list-field="data"]').dispatchEvent(new Event('input', { bubbles: true }));
               document.querySelector('[data-add-flex-block="preco"]').click();
               const additionalPrice = document.querySelector('#proposal-sections .flexible-block:last-child');
+              const additionalPriceTitle = additionalPrice.querySelector('[data-flex-title]');
+              if (additionalPriceTitle.value !== 'ITENS / PRE\u00c7O'
+                || additionalPrice.querySelector('h2')) {
+                reject(new Error('Cabe\u00e7alho edit\u00e1vel do bloco de pre\u00e7o est\u00e1 incorreto'));
+                return;
+              }
+              const firstPriceTopic = additionalPrice.querySelector('.price-topic');
+              const addPriceItemButton = firstPriceTopic.querySelector('[data-add-topic-item]');
+              const priceTermsGrid = additionalPrice.querySelector('.price-terms-grid');
+              const priceTermsColumns = getComputedStyle(priceTermsGrid).gridTemplateColumns.split(' ').filter(Boolean);
+              const expectedPriceTermColumns = window.innerWidth <= 760 ? 1 : (window.innerWidth <= 1180 ? 2 : 4);
+              const priceTermInputHeight = priceTermsGrid.querySelector('input').getBoundingClientRect().height;
+              const priceBlockPadding = Number.parseFloat(getComputedStyle(additionalPrice).paddingTop);
+              const totalBoxHeight = additionalPrice.querySelector('.total-box').getBoundingClientRect().height;
+              if (!addPriceItemButton.closest('.topic-heading')
+                || additionalPrice.querySelector('.price-topic-footer')
+                || firstPriceTopic.getBoundingClientRect().height > 145
+                || priceTermsColumns.length !== expectedPriceTermColumns
+                || priceTermInputHeight > 35
+                || priceBlockPadding > 19
+                || totalBoxHeight > 50) {
+                reject(new Error('Editor do bloco de pre\u00e7o n\u00e3o ficou compacto e sim\u00e9trico'));
+                return;
+              }
+              const initialNcmInputs = Array.from(additionalPrice.querySelectorAll('[data-field="ncm"]'));
+              const quantityInput = additionalPrice.querySelector('[data-field="quant"]');
+              quantityInput.focus();
+              if (!initialNcmInputs.length
+                || initialNcmInputs.some((input) => input.value !== '-----')
+                || quantityInput.selectionStart !== 0
+                || quantityInput.selectionEnd !== quantityInput.value.length) {
+                reject(new Error('NCM padr\u00e3o ou sele\u00e7\u00e3o autom\u00e1tica dos itens est\u00e1 incorreta'));
+                return;
+              }
+              addPriceItemButton.click();
+              const addedPriceRow = firstPriceTopic.querySelector('.item-row:last-child');
+              if (addedPriceRow.querySelector('[data-field="ncm"]').value !== '-----') {
+                reject(new Error('Nova linha de pre\u00e7o foi criada sem o NCM padr\u00e3o'));
+                return;
+              }
+              addedPriceRow.querySelector('.danger-action').click();
+              const optionalCommercialFields = [
+                'validade_proposta',
+                'pagamento',
+                'prazo_entrega',
+                'frete',
+                'impostos'
+              ].map((field) => additionalPrice.querySelector('[data-flex-price-field="' + field + '"]'));
+              const automaticPriceTotal = additionalPrice.querySelector('[data-flex-price-field="preco_total_numero"]');
+              const automaticPriceWords = additionalPrice.querySelector('[data-flex-price-field="preco_total_extenso"]');
+              const priceCurrency = additionalPrice.querySelector('[data-flex-price-field="moeda"]');
+              if (optionalCommercialFields.some((input) => input.value !== '')
+                || !automaticPriceTotal.value
+                || !automaticPriceWords.value
+                || priceCurrency.value !== 'Real R$') {
+                reject(new Error('Valores iniciais das condi\u00e7\u00f5es comerciais est\u00e3o incorretos'));
+                return;
+              }
+              const proposalValidity = optionalCommercialFields[0];
+              proposalValidity.value = '31082026';
+              proposalValidity.dispatchEvent(new Event('input', { bubbles: true }));
+              if (proposalValidity.value !== '31/08/2026') {
+                reject(new Error('Validade da proposta n\u00e3o est\u00e1 aplicando o padr\u00e3o de data'));
+                return;
+              }
+              proposalValidity.value = '';
+              additionalPriceTitle.value = 'INVESTIMENTO';
               additionalPrice.querySelector('[data-topic-title]').value = 'LOCACAO';
               additionalPrice.querySelector('[data-field="descricao"]').value = 'Equipamento adicional';
               additionalPrice.querySelector('[data-field="valor_unit"]').value = '250';
@@ -188,10 +295,155 @@ function createWindow() {
               document.querySelector('[data-add-flex-block="tabela"]').click();
               const customTable = document.querySelector('#proposal-sections .flexible-block:last-child');
               customTable.querySelector('[data-flex-title]').value = 'EQUIPAMENTOS';
+              const tableHeader = customTable.querySelector('.flexible-block-header');
+              const tableKind = customTable.querySelector('.flexible-block-kind');
+              const tableTitle = customTable.querySelector('[data-flex-title]');
+              const tableActions = customTable.querySelector('.flexible-block-actions');
+              const tableTitleBounds = tableTitle.getBoundingClientRect();
+              const tableActionsBounds = tableActions.getBoundingClientRect();
+              if (!tableHeader.classList.contains('fixed-style-flexible-header')
+                || getComputedStyle(tableKind).display !== 'none'
+                || tableTitleBounds.height > 35
+                || Math.abs(
+                  (tableTitleBounds.top + (tableTitleBounds.height / 2))
+                  - (tableActionsBounds.top + (tableActionsBounds.height / 2))
+                ) > 2) {
+                reject(new Error('Cabe\u00e7alho da tabela est\u00e1 fora do padr\u00e3o visual dos t\u00f3picos'));
+                return;
+              }
               customTable.querySelectorAll('[data-custom-column-name]')[0].value = 'Equipamento';
               customTable.querySelectorAll('[data-custom-column-name]')[1].value = 'Quantidade';
               customTable.querySelectorAll('[data-custom-cell]')[0].value = 'Bomba de teste';
               customTable.querySelectorAll('[data-custom-cell]')[1].value = '2';
+              const hasAlignedTableGrid = () => {
+                const headings = Array.from(customTable.querySelectorAll('[data-custom-column-name]'));
+                const cells = Array.from(customTable.querySelectorAll('tbody tr:first-child [data-custom-cell]'));
+                return headings.length === cells.length && headings.every((heading, index) => {
+                  const headingBounds = heading.getBoundingClientRect();
+                  const cellBounds = cells[index].getBoundingClientRect();
+                  return Math.abs(headingBounds.left - cellBounds.left) <= 1
+                    && Math.abs(headingBounds.width - cellBounds.width) <= 1;
+                });
+              };
+              const columnResizer = customTable.querySelector('[data-custom-column-resizer]');
+              const firstColumnInput = customTable.querySelector('[data-custom-column-name]');
+              const columnDeleteButton = customTable.querySelector('[data-remove-custom-column]');
+              const columnDeleteButtonsForAlignment = customTable.querySelectorAll('[data-remove-custom-column]');
+              const lastColumnDeleteButton = columnDeleteButtonsForAlignment[columnDeleteButtonsForAlignment.length - 1];
+              const rowDeleteButton = customTable.querySelector('[data-remove-custom-row]');
+              const inputBounds = firstColumnInput.getBoundingClientRect();
+              const resizerBounds = columnResizer.getBoundingClientRect();
+              const columnDeleteBounds = columnDeleteButton.getBoundingClientRect();
+              const lastColumnDeleteBounds = lastColumnDeleteButton.getBoundingClientRect();
+              const rowDeleteBounds = rowDeleteButton.getBoundingClientRect();
+              if (Math.abs((resizerBounds.left + (resizerBounds.width / 2)) - inputBounds.right) > 1
+                || resizerBounds.right > columnDeleteBounds.left
+                || columnDeleteBounds.width > 23
+                || rowDeleteBounds.width > 23
+                || Math.abs(lastColumnDeleteBounds.left - rowDeleteBounds.left) > 1
+                || Math.abs(lastColumnDeleteBounds.width - rowDeleteBounds.width) > 1) {
+                reject(new Error('Posi\u00e7\u00e3o da al\u00e7a ou tamanho dos bot\u00f5es da tabela est\u00e1 incorreto'));
+                return;
+              }
+              if (!hasAlignedTableGrid()) {
+                reject(new Error('Cabe\u00e7alho e c\u00e9lulas da tabela n\u00e3o est\u00e3o alinhados'));
+                return;
+              }
+              const geometryBeforeResize = Array.from(customTable.querySelectorAll('[data-custom-column-name]'))
+                .map((input) => input.getBoundingClientRect());
+              const tableWidthBeforeResize = customTable.querySelector('.custom-table').getBoundingClientRect().width;
+              const widthBeforeResize = Number(firstColumnInput.dataset.columnWidth);
+              columnResizer.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+              const geometryAfterResize = Array.from(customTable.querySelectorAll('[data-custom-column-name]'))
+                .map((input) => input.getBoundingClientRect());
+              const tableWidthAfterResize = customTable.querySelector('.custom-table').getBoundingClientRect().width;
+              if (!(Number(firstColumnInput.dataset.columnWidth) > widthBeforeResize)) {
+                reject(new Error('Redimensionamento da coluna da tabela n\u00e3o foi aplicado'));
+                return;
+              }
+              if (!(geometryAfterResize[0].width > geometryBeforeResize[0].width)
+                || !(geometryAfterResize[1].left > geometryBeforeResize[1].left)
+                || !(geometryAfterResize[1].width < geometryBeforeResize[1].width)
+                || Math.abs(tableWidthAfterResize - tableWidthBeforeResize) > 1) {
+                reject(new Error('Colunas seguintes n\u00e3o diminu\u00edram dentro da largura fixa'));
+                return;
+              }
+              if (!hasAlignedTableGrid()) {
+                reject(new Error('C\u00e9lulas n\u00e3o acompanharam a coluna redimensionada'));
+                return;
+              }
+              const resizedWidths = Array.from(customTable.querySelectorAll('[data-custom-column-name]'))
+                .map((input) => Number(input.dataset.columnWidth));
+              customTable.querySelector('[data-custom-table-action="column"]').click();
+              const widthsAfterAdding = Array.from(customTable.querySelectorAll('[data-custom-column-name]'))
+                .map((input) => Number(input.dataset.columnWidth));
+              const ratioBeforeAdding = resizedWidths[0] / resizedWidths[1];
+              const ratioAfterAdding = widthsAfterAdding[0] / widthsAfterAdding[1];
+              if (widthsAfterAdding.length !== 3
+                || Math.abs(ratioBeforeAdding - ratioAfterAdding) > 0.001
+                || Math.abs(widthsAfterAdding.reduce((sum, width) => sum + width, 0) - 100) > 0.001
+                || !hasAlignedTableGrid()) {
+                reject(new Error('Nova coluna n\u00e3o preservou a grade redimensionada'));
+                return;
+              }
+              const validateCumulativePush = (columnIndex) => {
+                const inputsBefore = Array.from(customTable.querySelectorAll('[data-custom-column-name]'));
+                const widthsBefore = inputsBefore.map((input) => Number(input.dataset.columnWidth));
+                const geometryBefore = inputsBefore.map((input) => input.getBoundingClientRect());
+                const tableWidthBefore = customTable.querySelector('.custom-table').getBoundingClientRect().width;
+                const handles = customTable.querySelectorAll('[data-custom-column-resizer]');
+                handles[columnIndex].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+                const inputsAfter = Array.from(customTable.querySelectorAll('[data-custom-column-name]'));
+                const widthsAfter = inputsAfter.map((input) => Number(input.dataset.columnWidth));
+                const geometryAfter = inputsAfter.map((input) => input.getBoundingClientRect());
+                const tableWidthAfter = customTable.querySelector('.custom-table').getBoundingClientRect().width;
+                const previousColumnsStayedFixed = geometryBefore
+                  .slice(0, columnIndex)
+                  .every((bounds, index) => (
+                    Math.abs(bounds.left - geometryAfter[index].left) <= 1
+                    && Math.abs(bounds.width - geometryAfter[index].width) <= 1
+                    && Math.abs(widthsBefore[index] - widthsAfter[index]) <= 0.001
+                  ));
+                const currentColumnGrew = widthsAfter[columnIndex] > widthsBefore[columnIndex]
+                  && geometryAfter[columnIndex].width > geometryBefore[columnIndex].width;
+                const followingColumnsWerePushed = geometryBefore
+                  .slice(columnIndex + 1)
+                  .every((bounds, offset) => {
+                    const index = columnIndex + offset + 1;
+                    return geometryAfter[index].left > bounds.left
+                      && geometryAfter[index].width < bounds.width
+                      && widthsAfter[index] < widthsBefore[index];
+                  });
+                return previousColumnsStayedFixed
+                  && currentColumnGrew
+                  && followingColumnsWerePushed
+                  && Math.abs(widthsAfter.reduce((sum, width) => sum + width, 0) - 100) <= 0.001
+                  && Math.abs(tableWidthAfter - tableWidthBefore) <= 1
+                  && hasAlignedTableGrid();
+              };
+              if (!validateCumulativePush(1)) {
+                reject(new Error('Regra cumulativa falhou ao redimensionar a coluna 2'));
+                return;
+              }
+              const widthsBeforeFourthColumn = Array.from(customTable.querySelectorAll('[data-custom-column-name]'))
+                .map((input) => Number(input.dataset.columnWidth));
+              customTable.querySelector('[data-custom-table-action="column"]').click();
+              const widthsWithFourthColumn = Array.from(customTable.querySelectorAll('[data-custom-column-name]'))
+                .map((input) => Number(input.dataset.columnWidth));
+              const fourthColumnScale = widthsWithFourthColumn[0] / widthsBeforeFourthColumn[0];
+              if (widthsWithFourthColumn.length !== 4
+                || widthsBeforeFourthColumn.some((width, index) => (
+                  Math.abs((widthsWithFourthColumn[index] / width) - fourthColumnScale) > 0.001
+                ))
+                || Math.abs(widthsWithFourthColumn.reduce((sum, width) => sum + width, 0) - 100) > 0.001
+                || !validateCumulativePush(2)) {
+                reject(new Error('Regra cumulativa falhou ao adicionar ou redimensionar a coluna 3'));
+                return;
+              }
+              let extraColumnButtons = customTable.querySelectorAll('[data-remove-custom-column]');
+              extraColumnButtons[extraColumnButtons.length - 1].click();
+              extraColumnButtons = customTable.querySelectorAll('[data-remove-custom-column]');
+              extraColumnButtons[extraColumnButtons.length - 1].click();
               topic.querySelector('[data-flex-action="up"]').click();
               topic.querySelector('[data-flex-action="up"]').click();
               document.querySelector('#proposal-form').requestSubmit();

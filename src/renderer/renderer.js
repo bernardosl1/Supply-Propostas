@@ -22,6 +22,7 @@ const versionTarget = document.querySelector('.sidebar-note span:last-child');
 const form = document.querySelector('#proposal-form');
 const servicesList = document.querySelector('#services-list');
 const technicalTeamList = document.querySelector('#technical-team-list');
+const objectObservations = document.querySelector('#object-observations');
 const resultPanel = document.querySelector('#result-panel');
 const resultPath = document.querySelector('#result-path');
 const pdfStatus = document.querySelector('#pdf-status');
@@ -64,8 +65,11 @@ const DEFAULT_FIXED_SECTION_ORDER = ['dados_comerciais', 'objeto', 'escopo'];
 
 const DEFAULT_PRICE_TOPICS = [
   { tipo: 'servico', titulo: 'Itens de servi\u00e7o', ncm: '-----', un: 'HH' },
-  { tipo: 'consumivel', titulo: 'Consum\u00edveis', ncm: '', un: 'PC' }
+  { tipo: 'consumivel', titulo: 'Consum\u00edveis', ncm: '-----', un: 'PC' }
 ];
+
+const CUSTOM_TABLE_MIN_COLUMN_WIDTH = 96;
+const CUSTOM_TABLE_WIDTH_PRECISION = 4;
 
 init();
 
@@ -122,6 +126,7 @@ function showView(viewName) {
 function bindForm() {
   document.querySelector('[data-add-service]').addEventListener('click', () => addServiceDescription(''));
   document.querySelector('[data-add-technical-team]').addEventListener('click', () => addTechnicalTeamMember(''));
+  document.querySelector('[data-add-object-observation]').addEventListener('click', () => addObjectObservation(''));
   document.querySelectorAll('[data-remove-fixed-section]').forEach((button) => {
     button.addEventListener('click', () => setFixedSectionVisible(button.dataset.removeFixedSection, false));
   });
@@ -233,10 +238,11 @@ function renderFixedPreviewSection(sectionId, number, data) {
     `;
   }
   if (sectionId === 'objeto') {
+    const observations = objectObservationEntries(data);
     return `
       <section class="preview-section">
         <h3 class="preview-section-title">${number}. Objeto</h3>
-        <p>${previewMultiline(data.objeto)}</p>
+        ${renderPreviewList(observations)}
       </section>
     `;
   }
@@ -257,7 +263,7 @@ function renderFixedPreviewSection(sectionId, number, data) {
 
 function renderFlexiblePreviewSection(block, number) {
   const title = block.tipo === 'preco'
-    ? 'Preço'
+    ? String(block.titulo ?? 'Preço').trim()
     : block.tipo === 'lista'
       ? 'Documentação'
       : block.titulo || 'Tópico sem nome';
@@ -273,7 +279,7 @@ function renderFlexiblePreviewSection(block, number) {
   }
   return `
     <section class="preview-section">
-      <h3 class="preview-section-title">${number}. ${escapeHtml(title)}</h3>
+      ${title ? `<h3 class="preview-section-title">${number}. ${escapeHtml(title)}</h3>` : ''}
       ${content}
     </section>
   `;
@@ -282,12 +288,30 @@ function renderFlexiblePreviewSection(block, number) {
 function renderPreviewSubtopics(subtopics = [], parentNumber) {
   return subtopics.map((subtopic, index) => {
     const number = `${parentNumber}.${index + 1}`;
+    const descendants = flattenSubtopicDescendants(subtopic.subtopicos || []);
     return `
       <h4 class="preview-subsection-title">${number} ${escapeHtml(subtopic.titulo || 'Subtópico sem nome')}</h4>
       ${renderPreviewList(subtopic.observacoes)}
-      ${renderPreviewSubtopics(subtopic.subtopicos || [], number)}
+      ${descendants.map((descendant, descendantIndex) => `
+        <h4 class="preview-subsection-title preview-nested-subsection-title">${number}.${descendantIndex + 1} ${escapeHtml(descendant.titulo || 'Subtópico sem nome')}</h4>
+        ${renderPreviewList(descendant.observacoes)}
+      `).join('')}
     `;
   }).join('');
+}
+
+function flattenSubtopicDescendants(subtopics = []) {
+  return (Array.isArray(subtopics) ? subtopics : []).flatMap((subtopic) => [
+    { ...subtopic, subtopicos: [] },
+    ...flattenSubtopicDescendants(subtopic?.subtopicos)
+  ]);
+}
+
+function normalizeSubtopicHierarchy(subtopics = []) {
+  return (Array.isArray(subtopics) ? subtopics : []).map((subtopic) => ({
+    ...subtopic,
+    subtopicos: flattenSubtopicDescendants(subtopic?.subtopicos)
+  }));
 }
 
 function renderDocumentationPreview(rows) {
@@ -301,11 +325,16 @@ function renderDocumentationPreview(rows) {
 }
 
 function renderCustomTablePreview(block) {
-  const columns = Array.isArray(block.colunas) ? block.colunas : [];
+  const columns = normalizeFlexibleTableColumns(
+    Array.isArray(block.colunas) ? block.colunas : [],
+    { createDefaults: false }
+  );
   const rows = Array.isArray(block.linhas) ? block.linhas : [];
   if (!columns.length) return previewEmpty();
+  const totalWidth = columns.reduce((sum, column) => sum + column.largura, 0);
   return `
     <table class="preview-table">
+      <colgroup>${columns.map((column) => `<col style="width: ${(column.largura / totalWidth) * 100}%">`).join('')}</colgroup>
       <thead><tr>${columns.map((column) => `<th>${previewValue(column.nome, 'Coluna')}</th>`).join('')}</tr></thead>
       <tbody>${rows.map((row) => `<tr>${columns.map((column) => `<td>${previewValue(row.valores?.[column.id])}</td>`).join('')}</tr>`).join('')}</tbody>
     </table>
@@ -419,7 +448,11 @@ function bindSectionDragAndDrop() {
     if (state.draggingSubtopic) {
       const targetSubtopic = event.target.closest('.flex-subtopic');
       const targetContainer = targetSubtopic?.parentElement || event.target.closest('[data-flex-subtopics]');
-      if (!targetContainer || !targetContainer.hasAttribute('data-flex-subtopics') || targetSubtopic === state.draggingSubtopic || state.draggingSubtopic.contains(targetContainer)) return;
+      if (!targetContainer
+        || !targetContainer.hasAttribute('data-flex-subtopics')
+        || subtopicContainerDepth(targetContainer) > 1
+        || targetSubtopic === state.draggingSubtopic
+        || state.draggingSubtopic.contains(targetContainer)) return;
       event.preventDefault();
       event.dataTransfer.dropEffect = 'move';
       if (!targetSubtopic) {
@@ -450,6 +483,16 @@ function bindSectionDragAndDrop() {
   });
 
   flexibleBlocks.addEventListener('dragend', finishSectionDrag);
+}
+
+function subtopicContainerDepth(container) {
+  let depth = 0;
+  let owner = container?.closest('.flex-subtopic');
+  while (owner) {
+    depth += 1;
+    owner = owner.parentElement?.closest('.flex-subtopic');
+  }
+  return depth;
 }
 
 function finishSectionDrag() {
@@ -539,9 +582,7 @@ async function handleSelectDocx() {
 
 function fillDefaults() {
   setValue('data_documento', todayPtBr());
-  setValue('validade_proposta', addDaysPtBr(30));
   setValue('moeda', 'Real R$');
-  setValue('impostos', 'inclusos no preço');
 }
 
 function resetFormToDefaults() {
@@ -549,6 +590,7 @@ function resetFormToDefaults() {
   form.reset();
   servicesList.innerHTML = '';
   technicalTeamList.innerHTML = '';
+  objectObservations.innerHTML = '';
   clearFlexibleBlocks();
   restoreDefaultFixedSectionOrder();
   updateFlexibleEmptyState();
@@ -558,6 +600,7 @@ function resetFormToDefaults() {
 
   addServiceDescription('');
   addTechnicalTeamMember('');
+  addObjectObservation('');
   applyExcludedFixedSections([]);
   fillDefaults();
   recalculate();
@@ -642,13 +685,19 @@ function addFlexibleBlock(data = {}, afterElement = null) {
     <button class="small-action" type="button" data-flex-action="duplicate">Duplicar</button>
     <button class="danger-action" type="button" data-flex-action="delete" title="Remover">x</button>
   `;
-  const actionButtons = `${moveButton}${managementButtons}`;
+  const topicCreationButtons = type === 'texto'
+    ? `
+      <button class="small-action" type="button" data-add-subtopic>+ Subt\u00f3pico</button>
+      <button class="small-action" type="button" data-add-topic-observation>+ Observa\u00e7\u00e3o</button>
+    `
+    : '';
+  const actionButtons = `${topicCreationButtons}${moveButton}${managementButtons}`;
   block.innerHTML = type === 'preco'
     ? `
       <div class="section-heading additional-price-heading">
-        <div>
-          <p class="eyebrow"><span data-flex-section-number></span> Itens / preço</p>
-          <h2>Serviços e consumíveis</h2>
+        <div class="additional-price-title flex-topic-title">
+          <strong data-flex-section-number></strong>
+          <input data-flex-title value="${escapeHtml(data.titulo ?? 'ITENS / PREÇO')}" placeholder="Título opcional">
         </div>
         <div class="price-actions">
           <button class="small-action" type="button" data-add-flex-price-topic>Adicionar tópico</button>
@@ -662,7 +711,7 @@ function addFlexibleBlock(data = {}, afterElement = null) {
       <div class="flexible-block-body"></div>
     `
     : `
-      <div class="flexible-block-header${type === 'texto' || type === 'lista' ? ' fixed-style-flexible-header' : ''}">
+      <div class="flexible-block-header${type === 'texto' || type === 'lista' || type === 'tabela' ? ' fixed-style-flexible-header' : ''}">
         <span class="flexible-block-kind">${FLEXIBLE_BLOCK_LABELS[type]}</span>
         ${titleField}
         <div class="flexible-block-actions">${actionButtons}</div>
@@ -711,10 +760,6 @@ function renderFlexibleBlockBody(block, data = {}) {
 
   if (type === 'texto') {
     body.innerHTML = `
-      <div class="topic-editor-actions">
-        <button class="small-action" type="button" data-add-subtopic>Adicionar subt\u00f3pico</button>
-        <button class="small-action" type="button" data-add-topic-observation>Adicionar observa\u00e7\u00e3o</button>
-      </div>
       <div class="topic-observations" data-topic-observations></div>
       <div class="flex-subtopics" data-flex-subtopics></div>
     `;
@@ -723,11 +768,11 @@ function renderFlexibleBlockBody(block, data = {}) {
       : (data.conteudo ? String(data.conteudo).split(/\r?\n/).filter(Boolean) : []);
     observations.forEach((observation) => addTopicObservation(body.querySelector('[data-topic-observations]'), observation));
     const subtopicsContainer = body.querySelector('[data-flex-subtopics]');
-    (data.subtopicos || []).forEach((subtopic) => addFlexibleSubtopic(block, subtopic, subtopicsContainer));
-    body.querySelector('[data-add-topic-observation]').addEventListener('click', () => {
+    normalizeSubtopicHierarchy(data.subtopicos || []).forEach((subtopic) => addFlexibleSubtopic(block, subtopic, subtopicsContainer));
+    block.querySelector('[data-add-topic-observation]').addEventListener('click', () => {
       addTopicObservation(body.querySelector('[data-topic-observations]'), '');
     });
-    body.querySelector('[data-add-subtopic]').addEventListener('click', () => addFlexibleSubtopic(block, {}));
+    block.querySelector('[data-add-subtopic]').addEventListener('click', () => addFlexibleSubtopic(block, {}));
     return;
   }
 
@@ -778,15 +823,15 @@ function renderFlexiblePriceEditor(block, data = {}) {
   body.innerHTML = `
     <div class="flex-price-editor" data-flex-price-editor>
       <div class="price-topics" data-flex-price-topics></div>
-      <div class="field-grid four-cols">
+      <div class="price-terms-grid">
         <label>Pre\u00e7o total<input data-flex-price-field="preco_total_numero" data-money></label>
-        <label class="wide">Pre\u00e7o por extenso<input data-flex-price-field="preco_total_extenso"></label>
+        <label>Pre\u00e7o por extenso<input data-flex-price-field="preco_total_extenso"></label>
         <label>Moeda<input data-flex-price-field="moeda" value="${escapeHtml(valueOrDefault('moeda', 'Real R$'))}"></label>
-        <label>Validade da proposta<input data-flex-price-field="validade_proposta" value="${escapeHtml(valueOrDefault('validade_proposta', addDaysPtBr(30)))}" placeholder="dd/mm/aaaa"></label>
-        <label>Pagamento<input data-flex-price-field="pagamento" value="${escapeHtml(valueOrDefault('pagamento', '30 dias'))}" placeholder="30 dias"></label>
-        <label>Prazo de entrega<input data-flex-price-field="prazo_entrega" value="${escapeHtml(valueOrDefault('prazo_entrega', 'A combinar'))}" placeholder="A combinar"></label>
-        <label>Frete<input data-flex-price-field="frete" value="${escapeHtml(valueOrDefault('frete', 'FOB | Rio de Janeiro (RJ)'))}" placeholder="FOB | Rio de Janeiro (RJ)"></label>
-        <label>Impostos<input data-flex-price-field="impostos" value="${escapeHtml(valueOrDefault('impostos', 'inclusos no pre\u00e7o'))}"></label>
+        <label>Validade da proposta<input data-flex-price-field="validade_proposta" value="${escapeHtml(formatDateInput(valueOrDefault('validade_proposta')))}" placeholder="dd/mm/aaaa" inputmode="numeric" maxlength="10" autocomplete="off"></label>
+        <label>Pagamento<input data-flex-price-field="pagamento" value="${escapeHtml(valueOrDefault('pagamento'))}"></label>
+        <label>Prazo de entrega<input data-flex-price-field="prazo_entrega" value="${escapeHtml(valueOrDefault('prazo_entrega'))}"></label>
+        <label>Frete<input data-flex-price-field="frete" value="${escapeHtml(valueOrDefault('frete'))}"></label>
+        <label>Impostos<input data-flex-price-field="impostos" value="${escapeHtml(valueOrDefault('impostos'))}"></label>
       </div>
     </div>
   `;
@@ -797,24 +842,57 @@ function renderFlexiblePriceEditor(block, data = {}) {
     : DEFAULT_PRICE_TOPICS.map((topic) => ({ ...topic }));
   topics.forEach((topic) => addPriceTopic(topic, !Array.isArray(topic.itens) || !topic.itens.length, topicsContainer));
   block.querySelector('[data-add-flex-price-topic]').addEventListener('click', () => addPriceTopic({}, false, topicsContainer));
+  bindDateMask(body.querySelector('[data-flex-price-field="validade_proposta"]'));
   recalculate();
 }
 
-function addTopicObservation(container, value) {
+function addTopicObservation(container, value, options = {}) {
   const row = document.createElement('div');
   row.className = 'topic-observation-row';
   row.innerHTML = `
     <span class="topic-bullet">\u2022</span>
-    <input data-topic-observation value="${escapeHtml(typeof value === 'string' ? value : value?.texto || '')}" placeholder="Observa\u00e7\u00e3o">
+    <input data-topic-observation value="${escapeHtml(typeof value === 'string' ? value : value?.texto || '')}" placeholder="${escapeHtml(options.placeholder || 'Observa\u00e7\u00e3o')}">
     <button class="danger-action" type="button" title="Remover observa\u00e7\u00e3o">x</button>
   `;
-  row.querySelector('button').addEventListener('click', () => row.remove());
+  row.querySelector('button').addEventListener('click', () => {
+    if (options.keepOne && container.querySelectorAll(':scope > .topic-observation-row').length <= 1) {
+      const input = row.querySelector('[data-topic-observation]');
+      input.value = '';
+      input.focus();
+      return;
+    }
+    row.remove();
+  });
   container.appendChild(row);
+  return row;
+}
+
+function addObjectObservation(value) {
+  return addTopicObservation(objectObservations, value, {
+    keepOne: true,
+    placeholder: 'Descreva o objeto da proposta'
+  });
+}
+
+function objectObservationEntries(data = {}) {
+  const source = Array.isArray(data.objeto_observacoes) && data.objeto_observacoes.length
+    ? data.objeto_observacoes
+    : String(data.objeto || '').split(/\r?\n/);
+  return source
+    .map((item) => String(typeof item === 'string' ? item : item?.texto || item?.item || '').trim())
+    .filter(Boolean);
+}
+
+function applyObjectObservations(data = {}) {
+  objectObservations.innerHTML = '';
+  objectObservationEntries(data).forEach((observation) => addObjectObservation(observation));
+  if (!objectObservations.children.length) addObjectObservation('');
 }
 
 function addFlexibleSubtopic(block, data = {}, targetContainer = null) {
   const container = targetContainer || block.querySelector('[data-flex-subtopics]');
   if (!container) return null;
+  const isNestedSubtopic = Boolean(container.closest('.flex-subtopic'));
   const subtopic = document.createElement('div');
   subtopic.className = 'flex-subtopic';
   subtopic.dataset.subtopicId = data.id || createFlexibleId('subtopico');
@@ -822,14 +900,14 @@ function addFlexibleSubtopic(block, data = {}, targetContainer = null) {
     <div class="flex-subtopic-heading">
       <strong data-flex-subtopic-number></strong>
       <input data-flex-subtopic-title value="${escapeHtml(stripAutomaticNumber(data.titulo || ''))}" placeholder="Nome do subt\u00f3pico">
-      <button class="subtopic-drag-handle" type="button" draggable="true" title="Arrastar subt\u00f3pico" aria-label="Arrastar subt\u00f3pico">\u22ee\u22ee</button>
-      <button class="danger-action" type="button" data-remove-subtopic title="Remover subt\u00f3pico">x</button>
+      <div class="flex-subtopic-actions">
+        <button class="small-action" type="button" data-add-nested-subtopic title="${isNestedSubtopic ? 'Adicionar no mesmo n\u00edvel' : 'Adicionar n\u00edvel abaixo'}">${isNestedSubtopic ? '+ Mesmo n\u00edvel' : '+ N\u00edvel abaixo'}</button>
+        <button class="small-action" type="button" data-add-subtopic-observation title="Adicionar observa\u00e7\u00e3o">+ Observa\u00e7\u00e3o</button>
+        <button class="subtopic-drag-handle" type="button" draggable="true" title="Arrastar subt\u00f3pico" aria-label="Arrastar subt\u00f3pico">\u22ee\u22ee</button>
+        <button class="danger-action" type="button" data-remove-subtopic title="Remover subt\u00f3pico">x</button>
+      </div>
     </div>
     <div class="topic-observations" data-subtopic-observations></div>
-    <div class="flex-subtopic-actions">
-      <button class="small-action" type="button" data-add-nested-subtopic>Adicionar subt\u00f3pico</button>
-      <button class="small-action" type="button" data-add-subtopic-observation>Adicionar observa\u00e7\u00e3o</button>
-    </div>
     <div class="flex-subtopics" data-flex-subtopics></div>
   `;
   const observations = Array.isArray(data.observacoes) ? data.observacoes : [];
@@ -839,7 +917,7 @@ function addFlexibleSubtopic(block, data = {}, targetContainer = null) {
     addFlexibleSubtopic(block, nested, nestedContainer);
   });
   subtopic.querySelector('[data-add-nested-subtopic]').addEventListener('click', () => {
-    addFlexibleSubtopic(block, {}, nestedContainer);
+    addFlexibleSubtopic(block, {}, isNestedSubtopic ? container : nestedContainer);
   });
   subtopic.querySelector('[data-add-subtopic-observation]').addEventListener('click', () => {
     addTopicObservation(subtopic.querySelector('[data-subtopic-observations]'), '');
@@ -882,29 +960,67 @@ function formatDateInput(value) {
   return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
 }
 
+function normalizeFlexibleTableColumns(rawColumns, options = {}) {
+  const createDefaults = options.createDefaults !== false;
+  const source = Array.isArray(rawColumns) && rawColumns.length
+    ? rawColumns
+    : (createDefaults
+      ? [
+        { id: createFlexibleId('coluna'), nome: 'Coluna 1' },
+        { id: createFlexibleId('coluna'), nome: 'Coluna 2' }
+      ]
+      : []);
+  if (!source.length) return [];
+
+  const columns = source.map((column, index) => ({
+    id: column?.id || createFlexibleId(`coluna_${index + 1}`),
+    nome: column?.nome || '',
+    largura: Number(column?.largura)
+  }));
+  const validWidths = columns
+    .map((column) => column.largura)
+    .filter((width) => Number.isFinite(width) && width > 0);
+  const fallbackWeight = validWidths.length
+    ? validWidths.reduce((sum, width) => sum + width, 0) / validWidths.length
+    : 100 / columns.length;
+  const weights = columns.map((column) => (
+    Number.isFinite(column.largura) && column.largura > 0 ? column.largura : fallbackWeight
+  ));
+  const totalWeight = weights.reduce((sum, width) => sum + width, 0);
+  let allocated = 0;
+
+  return columns.map((column, index) => {
+    const width = index === columns.length - 1
+      ? 100 - allocated
+      : Number(((weights[index] / totalWeight) * 100).toFixed(CUSTOM_TABLE_WIDTH_PRECISION));
+    allocated += width;
+    return { ...column, largura: Number(width.toFixed(CUSTOM_TABLE_WIDTH_PRECISION)) };
+  });
+}
+
 function normalizeFlexibleTable(data = {}) {
-  const columns = Array.isArray(data.colunas) && data.colunas.length
-    ? data.colunas.map((column, index) => ({
-      id: column.id || createFlexibleId(`coluna_${index + 1}`),
-      nome: column.nome || ''
-    }))
-    : [
-      { id: createFlexibleId('coluna'), nome: 'Coluna 1' },
-      { id: createFlexibleId('coluna'), nome: 'Coluna 2' }
-    ];
+  const columns = normalizeFlexibleTableColumns(data.colunas);
   const rows = Array.isArray(data.linhas) && data.linhas.length ? data.linhas : [{}];
   return { colunas: columns, linhas: rows };
 }
 
 function renderFlexibleTableEditor(block, data) {
+  data = {
+    ...data,
+    colunas: normalizeFlexibleTableColumns(data.colunas)
+  };
   const body = block.querySelector('.flexible-block-body');
   body.innerHTML = `
     <div class="custom-table-editor">
       <div class="custom-table-actions">
+        <span class="custom-table-resize-hint">Arraste as divis\u00f3rias para ajustar as colunas</span>
         <button class="small-action" type="button" data-custom-table-action="column">Adicionar coluna</button>
         <button class="small-action" type="button" data-custom-table-action="row">Adicionar linha</button>
       </div>
       <table class="custom-table">
+        <colgroup>
+          ${data.colunas.map((column) => `<col data-custom-column-width="${escapeHtml(column.id)}">`).join('')}
+        </colgroup>
         <thead><tr></tr></thead>
         <tbody></tbody>
       </table>
@@ -913,36 +1029,57 @@ function renderFlexibleTableEditor(block, data) {
   const head = body.querySelector('thead tr');
   const tableBody = body.querySelector('tbody');
 
-  data.colunas.forEach((column) => {
+  const table = body.querySelector('.custom-table');
+  table.style.minWidth = `${Math.max(
+    560,
+    (data.colunas.length * (CUSTOM_TABLE_MIN_COLUMN_WIDTH + 32)) + 16
+  )}px`;
+
+  data.colunas.forEach((column, columnIndex) => {
     const cell = document.createElement('th');
+    cell.dataset.customColumnId = column.id;
     cell.innerHTML = `
       <div class="custom-column-heading">
-        <input data-custom-column-name data-column-id="${escapeHtml(column.id)}" value="${escapeHtml(column.nome)}" placeholder="Nome da coluna">
+        <div class="custom-column-field">
+          <input data-custom-column-name data-column-id="${escapeHtml(column.id)}" data-column-width="${column.largura}" value="${escapeHtml(column.nome)}" placeholder="Nome da coluna">
+          ${columnIndex < data.colunas.length - 1
+            ? `<span class="custom-column-resizer" data-custom-column-resizer="${escapeHtml(column.id)}" role="separator" tabindex="0" aria-orientation="vertical" aria-label="Redimensionar coluna ${columnIndex + 1}" title="Arraste para ajustar a largura"></span>`
+            : ''}
+        </div>
         <button class="danger-action" type="button" data-remove-custom-column="${escapeHtml(column.id)}" title="Remover coluna">x</button>
       </div>
     `;
     head.appendChild(cell);
   });
-  head.insertAdjacentHTML('beforeend', '<th></th>');
 
   data.linhas.forEach((rowData) => {
     const row = document.createElement('tr');
-    data.colunas.forEach((column) => {
+    data.colunas.forEach((column, columnIndex) => {
       const cell = document.createElement('td');
       const value = rowData?.valores?.[column.id] ?? rowData?.[column.id] ?? '';
-      cell.innerHTML = `<input data-custom-cell data-column-id="${escapeHtml(column.id)}" value="${escapeHtml(value)}">`;
+      cell.innerHTML = `
+        <div class="custom-table-cell-layout">
+          <input data-custom-cell data-column-id="${escapeHtml(column.id)}" value="${escapeHtml(value)}">
+          ${columnIndex === data.colunas.length - 1
+            ? '<button class="danger-action" type="button" data-remove-custom-row title="Remover linha">x</button>'
+            : '<span aria-hidden="true"></span>'}
+        </div>
+      `;
       row.appendChild(cell);
     });
-    const actionCell = document.createElement('td');
-    actionCell.innerHTML = '<button class="danger-action" type="button" data-remove-custom-row title="Remover linha">x</button>';
-    actionCell.querySelector('button').addEventListener('click', () => row.remove());
-    row.appendChild(actionCell);
+    row.querySelector('[data-remove-custom-row]').addEventListener('click', () => row.remove());
     tableBody.appendChild(row);
   });
+  applyCustomTableColumnLayout(table);
 
   body.querySelector('[data-custom-table-action="column"]').addEventListener('click', () => {
     const current = readFlexibleTable(block, { keepEmptyRows: true });
-    current.colunas.push({ id: createFlexibleId('coluna'), nome: `Coluna ${current.colunas.length + 1}` });
+    const averageWidth = current.colunas.reduce((sum, column) => sum + column.largura, 0) / current.colunas.length;
+    current.colunas.push({
+      id: createFlexibleId('coluna'),
+      nome: `Coluna ${current.colunas.length + 1}`,
+      largura: averageWidth
+    });
     renderFlexibleTableEditor(block, current);
   });
   body.querySelector('[data-custom-table-action="row"]').addEventListener('click', () => {
@@ -960,12 +1097,146 @@ function renderFlexibleTableEditor(block, data) {
       renderFlexibleTableEditor(block, current);
     });
   });
+  bindCustomTableColumnResize(table);
+}
+
+function getCustomTableColumnState(table) {
+  const inputs = Array.from(table.querySelectorAll('[data-custom-column-name]'));
+  const columns = Array.from(table.querySelectorAll('col[data-custom-column-width]'));
+  return inputs.map((input, index) => ({
+    input,
+    column: columns[index],
+    width: Number(input.dataset.columnWidth) || 0
+  }));
+}
+
+function applyCustomTableColumnLayout(table) {
+  const states = getCustomTableColumnState(table);
+  const totalWidth = states.reduce((sum, state) => sum + state.width, 0);
+  if (!totalWidth) return;
+  states.forEach((state) => {
+    state.column.style.width = `${(state.width / totalWidth) * 100}%`;
+  });
+  table.style.width = '100%';
+}
+
+function applyCustomTableColumnWidths(table, widths) {
+  const states = getCustomTableColumnState(table);
+  if (states.length !== widths.length) return;
+  const targetTotal = states.reduce((sum, state) => sum + state.width, 0);
+  let allocated = 0;
+  states.forEach((state, index) => {
+    const width = index === states.length - 1
+      ? targetTotal - allocated
+      : Number(widths[index].toFixed(CUSTOM_TABLE_WIDTH_PRECISION));
+    const normalizedWidth = Number(width.toFixed(CUSTOM_TABLE_WIDTH_PRECISION));
+    state.input.dataset.columnWidth = String(normalizedWidth);
+    allocated += normalizedWidth;
+  });
+  applyCustomTableColumnLayout(table);
+}
+
+function adjustCustomTableColumns(table, columnIndex, deltaWidth, sourceWidths = null) {
+  const states = getCustomTableColumnState(table);
+  if (!states[columnIndex] || columnIndex >= states.length - 1) return;
+  const headerCells = Array.from(table.querySelectorAll('th[data-custom-column-id]'));
+  const totalDataWidth = headerCells.reduce((sum, cell) => sum + cell.getBoundingClientRect().width, 0);
+  if (!totalDataWidth) return;
+
+  const widths = sourceWidths ? [...sourceWidths] : states.map((state) => state.width);
+  const totalWidth = widths.reduce((sum, width) => sum + width, 0);
+  const pixelsPerWidthUnit = totalDataWidth / totalWidth;
+  const minimumWidth = Math.min(
+    totalWidth / states.length,
+    Math.max(
+      1,
+      (CUSTOM_TABLE_MIN_COLUMN_WIDTH + 32) / pixelsPerWidthUnit
+    )
+  );
+  const followingIndexes = widths
+    .map((_, index) => index)
+    .slice(columnIndex + 1);
+
+  if (deltaWidth > 0) {
+    const availableByColumn = followingIndexes.map((index) => Math.max(0, widths[index] - minimumWidth));
+    const totalAvailable = availableByColumn.reduce((sum, width) => sum + width, 0);
+    const appliedDelta = Math.min(deltaWidth, totalAvailable);
+    if (appliedDelta <= 0) return;
+    widths[columnIndex] += appliedDelta;
+    followingIndexes.forEach((index, offset) => {
+      widths[index] -= appliedDelta * (availableByColumn[offset] / totalAvailable);
+    });
+  } else if (deltaWidth < 0) {
+    const availableCurrentWidth = Math.max(0, widths[columnIndex] - minimumWidth);
+    const releasedWidth = Math.min(-deltaWidth, availableCurrentWidth);
+    if (releasedWidth <= 0) return;
+    const followingTotal = followingIndexes.reduce((sum, index) => sum + widths[index], 0);
+    widths[columnIndex] -= releasedWidth;
+    followingIndexes.forEach((index) => {
+      widths[index] += releasedWidth * (widths[index] / followingTotal);
+    });
+  } else {
+    return;
+  }
+
+  const adjustedTotal = widths.reduce((sum, width) => sum + width, 0);
+  widths[widths.length - 1] += totalWidth - adjustedTotal;
+  applyCustomTableColumnWidths(table, widths);
+}
+
+function bindCustomTableColumnResize(table) {
+  table.querySelectorAll('[data-custom-column-resizer]').forEach((handle, columnIndex) => {
+    handle.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      const states = getCustomTableColumnState(table);
+      const state = states[columnIndex];
+      const headerCells = Array.from(table.querySelectorAll('th[data-custom-column-id]'));
+      const totalDataWidth = headerCells.reduce((sum, cell) => sum + cell.getBoundingClientRect().width, 0);
+      const totalWidth = states.reduce((sum, column) => sum + column.width, 0);
+      if (!state || !totalDataWidth || !totalWidth) return;
+
+      const startX = event.clientX;
+      const startWidths = states.map((column) => column.width);
+      const pixelsPerWidthUnit = totalDataWidth / totalWidth;
+      const pointerId = event.pointerId;
+      handle.classList.add('is-resizing');
+      document.body.classList.add('resizing-table-column');
+      handle.setPointerCapture?.(pointerId);
+
+      const onPointerMove = (moveEvent) => {
+        if (moveEvent.pointerId !== pointerId) return;
+        const deltaWidth = (moveEvent.clientX - startX) / pixelsPerWidthUnit;
+        adjustCustomTableColumns(table, columnIndex, deltaWidth, startWidths);
+      };
+      const stopResize = (endEvent) => {
+        if (endEvent.pointerId !== pointerId) return;
+        handle.classList.remove('is-resizing');
+        document.body.classList.remove('resizing-table-column');
+        handle.removeEventListener('pointermove', onPointerMove);
+        handle.removeEventListener('pointerup', stopResize);
+        handle.removeEventListener('pointercancel', stopResize);
+        handle.releasePointerCapture?.(pointerId);
+      };
+
+      handle.addEventListener('pointermove', onPointerMove);
+      handle.addEventListener('pointerup', stopResize);
+      handle.addEventListener('pointercancel', stopResize);
+    });
+
+    handle.addEventListener('keydown', (event) => {
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+      event.preventDefault();
+      adjustCustomTableColumns(table, columnIndex, event.key === 'ArrowLeft' ? -2 : 2);
+    });
+  });
 }
 
 function readFlexibleTable(block, options = {}) {
   const columns = Array.from(block.querySelectorAll('[data-custom-column-name]')).map((input) => ({
     id: input.dataset.columnId,
-    nome: input.value.trim()
+    nome: input.value.trim(),
+    largura: Number(input.dataset.columnWidth)
   }));
   const rows = Array.from(block.querySelectorAll('.custom-table tbody tr')).map((row) => {
     const values = {};
@@ -975,7 +1246,7 @@ function readFlexibleTable(block, options = {}) {
     return { valores: values };
   });
   return {
-    colunas: columns,
+    colunas: normalizeFlexibleTableColumns(columns),
     linhas: options.keepEmptyRows ? rows : rows.filter((row) => Object.values(row.valores).some(Boolean))
   };
 }
@@ -1143,19 +1414,17 @@ function addPriceTopic(topic = {}, withDefaultItem = false, targetContainer) {
   const section = document.createElement('div');
   section.className = 'price-topic';
   section.dataset.topicType = type;
-  section.dataset.defaultNcm = topic.ncm ?? defaults.ncm ?? '';
+  section.dataset.defaultNcm = topic.ncm || defaults.ncm || '-----';
   section.dataset.defaultUn = topic.un ?? defaults.un ?? 'PC';
   section.innerHTML = `
     <div class="topic-heading">
       <input class="topic-title-input" data-topic-title value="${escapeHtml(title)}" placeholder="Nome do t\u00f3pico">
       <div class="topic-actions">
+        <button class="small-action" type="button" data-add-topic-item>Adicionar linha</button>
         <button class="danger-action" type="button" data-remove-topic title="Remover t\u00f3pico">x</button>
       </div>
     </div>
     <div class="item-table"></div>
-    <div class="price-topic-footer">
-      <button class="small-action" type="button" data-add-topic-item>Adicionar linha</button>
-    </div>
   `;
 
   section.querySelector('[data-add-topic-item]').addEventListener('click', () => addItem(section));
@@ -1188,7 +1457,7 @@ function addItem(topicElement, values = {}) {
   row.innerHTML = `
     <input data-field="item" value="${escapeHtml(values.item || nextItemCode(topicsContainer))}">
     <input data-field="descricao" value="${escapeHtml(values.descricao || '')}">
-    <input data-field="ncm" value="${escapeHtml(values.ncm ?? topicElement.dataset.defaultNcm ?? '')}">
+    <input data-field="ncm" value="${escapeHtml(values.ncm || topicElement.dataset.defaultNcm || '-----')}">
     <input data-field="quant" type="text" inputmode="decimal" value="${escapeHtml(values.quant ?? 1)}">
     <input data-field="un" value="${escapeHtml(values.un || topicElement.dataset.defaultUn || 'PC')}">
     <input data-field="valor_unit" type="text" inputmode="decimal" value="${escapeHtml(values.valor_unit ?? 0)}">
@@ -1200,6 +1469,10 @@ function addItem(topicElement, values = {}) {
     renumberItemCodes(topicsContainer);
     recalculate();
   });
+  row.querySelector('[data-field="ncm"]').addEventListener('blur', (event) => {
+    if (!event.currentTarget.value.trim()) event.currentTarget.value = '-----';
+  });
+  row.querySelectorAll('input:not([readonly])').forEach(bindSelectAllOnEntry);
   container.appendChild(row);
   renumberItemCodes(topicsContainer);
   recalculate();
@@ -1213,6 +1486,7 @@ function applyImportedData(result) {
   });
 
   const importedData = result.data || {};
+  applyObjectObservations(importedData);
   const importedTopics = importedData.topicos_preco || result.topicos_preco;
   const topics = Array.isArray(importedTopics) && importedTopics.length
     ? importedTopics
@@ -1275,7 +1549,7 @@ function migrateLegacyPriceData(data = {}, topics = []) {
     pagamento: data.pagamento || '',
     prazo_entrega: data.prazo_entrega || '',
     frete: data.frete || '',
-    impostos: data.impostos || 'inclusos no pre\u00e7o'
+    impostos: data.impostos || ''
   });
   const migratedSectionId = `flex:${id}`;
   const order = originalOrder.length
@@ -1315,6 +1589,20 @@ function renumberItemCodes(container) {
   const rows = Array.from(container.querySelectorAll('.item-row'));
   rows.forEach((row, index) => {
     row.querySelector('[data-field="item"]').value = String(index + 1).padStart(4, '0');
+  });
+}
+
+function bindSelectAllOnEntry(input) {
+  let selectOnPointerUp = false;
+  input.addEventListener('pointerdown', () => {
+    selectOnPointerUp = document.activeElement !== input;
+  });
+  input.addEventListener('focus', () => input.select());
+  input.addEventListener('pointerup', (event) => {
+    if (!selectOnPointerUp) return;
+    event.preventDefault();
+    input.select();
+    selectOnPointerUp = false;
   });
 }
 
@@ -1384,8 +1672,7 @@ function validateProposal() {
     ['empresa_cliente', 'Informe a empresa cliente.'],
     ['numero_documento', 'Informe o número do documento.'],
     ['data_documento', 'Informe a data do documento.'],
-    ['responsavel_nome', 'Informe o responsável.'],
-    ['objeto', 'Informe o objeto da proposta.']
+    ['responsavel_nome', 'Informe o responsável.']
   ];
 
   requiredFields.forEach(([name, message]) => {
@@ -1395,6 +1682,15 @@ function validateProposal() {
     messages.push(message);
     if (!focusTarget) focusTarget = field;
   });
+
+  const objectSection = flexibleBlocks.querySelector(':scope > [data-proposal-section="objeto"]');
+  const objectEntries = collectTopicObservations(objectObservations);
+  if (!objectSection?.hidden && !objectEntries.length) {
+    messages.push('Informe o objeto da proposta.');
+    const field = objectObservations.querySelector('[data-topic-observation]');
+    field?.classList.add('invalid');
+    if (!focusTarget) focusTarget = field;
+  }
 
   const scopeSection = flexibleBlocks.querySelector(':scope > [data-proposal-section="escopo"]');
   const descriptions = Array.from(document.querySelectorAll('[data-service-description]'))
@@ -1455,6 +1751,8 @@ function collectFormData() {
     data[key] = String(value).trim();
   });
 
+  data.objeto_observacoes = collectTopicObservations(objectObservations);
+  data.objeto = data.objeto_observacoes.join('\n');
   data.secoes_excluidas = ['objeto', 'escopo'].filter((sectionId) => {
     const section = flexibleBlocks.querySelector(`:scope > [data-proposal-section="${sectionId}"]`);
     return Boolean(section?.hidden);
@@ -1497,7 +1795,7 @@ function collectItems(container) {
     item: readRowField(row, 'item'),
     codigo: '',
     descricao: readRowField(row, 'descricao'),
-    ncm: readRowField(row, 'ncm'),
+    ncm: readRowField(row, 'ncm') || '-----',
     quant: readNumber(readRowField(row, 'quant')),
     un: readRowField(row, 'un'),
     valor_unit: readNumber(readRowField(row, 'valor_unit')),
@@ -1718,6 +2016,7 @@ function loadProposalIntoForm(proposal, options = {}) {
       ? `${data.numero_documento || proposal.numero_documento}-COPIA`
       : data.numero_documento
   });
+  applyObjectObservations(data);
   applyExcludedFixedSections(data.secoes_excluidas);
 
   (data.servicos_descricao || []).forEach((item) => addServiceDescription(typeof item === 'string' ? item : item.item));

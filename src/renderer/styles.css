@@ -587,6 +587,10 @@ h2 {
   font-size: 13px;
 }
 
+.preview-nested-subsection-title {
+  margin-left: 18px;
+}
+
 .preview-commercial-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -880,38 +884,39 @@ textarea.invalid {
 
 .price-topics {
   display: grid;
-  gap: 18px;
+  gap: 10px;
   min-width: 0;
 }
 
 .price-topic {
   display: grid;
-  gap: 12px;
+  gap: 8px;
   min-width: 0;
-  padding: 16px;
+  padding: 11px 12px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 8px;
   background: #fbfcfd;
-  box-shadow: 0 1px 2px rgba(9, 40, 58, 0.04);
 }
 
 .topic-heading {
   display: grid;
-  grid-template-columns: minmax(220px, 420px) minmax(0, 1fr);
-  gap: 12px;
+  grid-template-columns: minmax(180px, 1fr) auto;
+  gap: 8px;
   align-items: center;
 }
 
 .topic-actions {
   justify-content: flex-end;
+  gap: 6px;
 }
 
 .topic-title-input {
-  height: 40px;
+  height: 32px;
+  padding: 0 8px;
   border-color: transparent;
   background: transparent;
   color: var(--ink);
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 800;
 }
 
@@ -941,34 +946,29 @@ textarea.invalid {
 
 .item-table {
   display: grid;
-  gap: 8px;
+  gap: 5px;
   min-width: 0;
 }
 
 .item-row,
-.item-head,
-.price-topic-footer {
+.item-head {
   display: grid;
-  grid-template-columns: 72px minmax(260px, 2.2fr) 108px 82px 70px 118px 118px 34px;
-  gap: 8px;
+  grid-template-columns: 64px minmax(240px, 2.5fr) 96px 72px 62px 108px 108px 28px;
+  gap: 6px;
   align-items: center;
-}
-
-.price-topic-footer .small-action {
-  grid-column: 7;
-  width: 100%;
-  min-height: 36px;
 }
 
 .item-head {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 800;
   text-transform: uppercase;
 }
 
 .item-row input {
-  height: 36px;
+  height: 32px;
+  padding: 0 8px;
+  font-size: 13px;
 }
 
 .item-row input[readonly] {
@@ -978,9 +978,9 @@ textarea.invalid {
 
 .total-box {
   display: grid;
-  gap: 4px;
-  min-width: 160px;
-  padding: 10px 14px;
+  gap: 1px;
+  min-width: 120px;
+  padding: 6px 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--accent-soft);
@@ -989,13 +989,13 @@ textarea.invalid {
 
 .total-box span {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
 }
 
 .total-box strong {
-  font-size: 20px;
+  font-size: 16px;
 }
 
 .result-panel {
@@ -1123,7 +1123,9 @@ select {
 
 .fixed-style-flexible-header .flex-topic-title strong,
 .fixed-style-flexible-header .flex-fixed-section-title,
-.fixed-style-flexible-header [data-flex-title] {
+.fixed-style-flexible-header [data-flex-title],
+.additional-price-title.flex-topic-title strong,
+.additional-price-title [data-flex-title] {
   min-width: 0;
   color: var(--accent);
   font-size: 12px;
@@ -1132,22 +1134,31 @@ select {
   text-transform: uppercase;
 }
 
-.fixed-style-flexible-header [data-flex-title] {
+.fixed-style-flexible-header [data-flex-title],
+.additional-price-title [data-flex-title] {
   height: 34px;
   padding: 0 4px;
   border-color: transparent;
   background: transparent;
 }
 
-.fixed-style-flexible-header [data-flex-title]::placeholder {
+.fixed-style-flexible-header [data-flex-title]::placeholder,
+.additional-price-title [data-flex-title]::placeholder {
   color: var(--accent);
   opacity: 0.7;
 }
 
 .fixed-style-flexible-header [data-flex-title]:hover,
-.fixed-style-flexible-header [data-flex-title]:focus {
+.fixed-style-flexible-header [data-flex-title]:focus,
+.additional-price-title [data-flex-title]:hover,
+.additional-price-title [data-flex-title]:focus {
   border-color: var(--line);
   background: #fbfcfd;
+}
+
+.additional-price-title {
+  flex: 1 1 280px;
+  min-width: 220px;
 }
 
 .flexible-block-kind {
@@ -1163,10 +1174,6 @@ select {
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 8px;
   align-items: center;
-}
-
-.flex-subtopic-heading {
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
 }
 
 .flex-topic-title strong,
@@ -1196,6 +1203,59 @@ select {
   gap: 8px;
 }
 
+.object-observation-editor {
+  display: grid;
+  gap: 8px;
+}
+
+.fixed-proposal-section[data-proposal-section="objeto"] {
+  gap: 12px;
+  padding: 18px;
+}
+
+.fixed-proposal-section[data-proposal-section="objeto"] .section-heading {
+  gap: 12px;
+}
+
+.fixed-proposal-section[data-proposal-section="objeto"] .fixed-section-actions {
+  gap: 6px;
+}
+
+.fixed-proposal-section[data-proposal-section="objeto"] .small-action {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.fixed-proposal-section[data-proposal-section="objeto"] .section-drag-handle {
+  width: 34px;
+  height: 32px;
+  min-height: 32px;
+}
+
+.fixed-proposal-section[data-proposal-section="objeto"] .danger-action {
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+}
+
+.fixed-proposal-section[data-proposal-section="objeto"] .topic-observation-row {
+  grid-template-columns: 18px minmax(0, 1fr) 30px;
+  gap: 8px;
+}
+
+.fixed-proposal-section[data-proposal-section="objeto"] [data-topic-observation] {
+  height: 34px;
+  padding: 0 9px;
+  font-size: 13px;
+}
+
+.fixed-proposal-section[data-proposal-section="objeto"] .topic-observation-row .danger-action {
+  width: 30px;
+  height: 30px;
+  min-height: 30px;
+}
+
 .topic-observation-row {
   display: grid;
   grid-template-columns: 22px minmax(0, 1fr) 34px;
@@ -1212,11 +1272,13 @@ select {
 
 .flex-subtopic {
   display: grid;
-  gap: 10px;
-  margin-left: 22px;
-  padding: 12px;
-  border-left: 3px solid var(--accent-soft);
-  background: #ffffff;
+  gap: 8px;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-left: 3px solid #b9dce9;
+  border-radius: 8px;
+  background: #fbfcfd;
 }
 
 .flex-subtopic > .small-action {
@@ -1225,18 +1287,116 @@ select {
 
 .flex-subtopic-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 5px;
+}
+
+.flex-subtopic-actions .small-action {
+  min-height: 30px;
+  padding: 0 8px;
+  font-size: 11px;
+}
+
+.flex-subtopic-actions .subtopic-drag-handle {
+  width: 30px;
+  height: 30px;
+  min-height: 30px;
+}
+
+.flex-subtopic-actions .danger-action {
+  width: 28px;
+  height: 30px;
+  min-height: 30px;
 }
 
 .flex-subtopic .flex-subtopic {
-  margin-left: 18px;
+  margin-left: 14px;
+  background: #ffffff;
+}
+
+.flex-subtopic .flex-subtopic .flex-subtopic {
+  background: #fbfcfd;
+}
+
+.flex-subtopic [data-flex-subtopic-title] {
+  height: 32px;
+  padding: 0 8px;
+  font-size: 13px;
+}
+
+.flex-subtopic > .topic-observations {
+  margin-left: 42px;
+}
+
+.flex-subtopic > .topic-observations .topic-observation-row {
+  grid-template-columns: 18px minmax(0, 1fr) 28px;
+  gap: 6px;
+}
+
+.flex-subtopic > .topic-observations [data-topic-observation] {
+  height: 32px;
+  padding: 0 8px;
+  font-size: 13px;
+}
+
+.flex-subtopic > .topic-observations .danger-action {
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
 }
 
 .flexible-block-actions .small-action {
   min-width: 34px;
   padding: 0 10px;
+}
+
+.flexible-block[data-flex-type="texto"] {
+  gap: 12px;
+  padding: 18px;
+}
+
+.flexible-block[data-flex-type="texto"] .flexible-block-header {
+  gap: 10px;
+}
+
+.flexible-block[data-flex-type="texto"] .flexible-block-actions {
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.flexible-block[data-flex-type="texto"] .flexible-block-actions .small-action {
+  min-height: 32px;
+  padding: 0 9px;
+  font-size: 12px;
+}
+
+.flexible-block[data-flex-type="texto"] .flexible-block-actions .section-drag-handle,
+.flexible-block[data-flex-type="texto"] .flexible-block-actions .danger-action {
+  height: 32px;
+  min-height: 32px;
+}
+
+.flexible-block[data-flex-type="texto"] .flexible-block-body {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.flexible-block[data-flex-type="texto"] > .flexible-block-body > .topic-observations .topic-observation-row {
+  grid-template-columns: 18px minmax(0, 1fr) 30px;
+}
+
+.flexible-block[data-flex-type="texto"] > .flexible-block-body > .topic-observations [data-topic-observation] {
+  height: 34px;
+  padding: 0 9px;
+  font-size: 13px;
+}
+
+.flexible-block[data-flex-type="texto"] > .flexible-block-body > .topic-observations .danger-action {
+  width: 30px;
+  height: 30px;
+  min-height: 30px;
 }
 
 .flexible-block-body textarea {
@@ -1245,12 +1405,81 @@ select {
 
 .flex-price-editor {
   display: grid;
-  gap: 18px;
+  gap: 12px;
+}
+
+.flexible-block[data-flex-type="preco"] {
+  gap: 14px;
+  padding: 18px;
+}
+
+.additional-price-heading {
+  gap: 12px;
 }
 
 .additional-price-heading .price-actions {
   flex-wrap: wrap;
   justify-content: flex-end;
+  gap: 6px;
+}
+
+.additional-price-heading .flexible-block-actions {
+  gap: 6px;
+}
+
+.additional-price-heading .small-action {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.additional-price-heading .danger-action {
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+}
+
+.additional-price-heading .section-drag-handle {
+  width: 34px;
+  height: 32px;
+  min-height: 32px;
+}
+
+.additional-price-title [data-flex-title] {
+  height: 32px;
+}
+
+.price-topic .small-action {
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.price-topic .danger-action {
+  width: 30px;
+  height: 30px;
+  min-height: 30px;
+}
+
+.item-row .danger-action {
+  width: 28px;
+}
+
+.price-terms-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 9px 10px;
+}
+
+.price-terms-grid label {
+  gap: 4px;
+  font-size: 11px;
+}
+
+.price-terms-grid input {
+  height: 34px;
+  padding: 0 9px;
+  font-size: 13px;
 }
 
 .document-list-editor {
@@ -1341,36 +1570,112 @@ select {
   justify-content: flex-end;
 }
 
+.custom-table-resize-hint {
+  align-self: center;
+  margin-right: auto;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .custom-table {
   width: 100%;
   min-width: 560px;
   border-collapse: separate;
   border-spacing: 8px;
+  table-layout: fixed;
   margin: -8px;
 }
 
 .custom-table th,
 .custom-table td {
-  min-width: 140px;
   padding: 0;
   vertical-align: middle;
 }
 
-.custom-table th:last-child,
-.custom-table td:last-child {
-  width: 34px;
-  min-width: 34px;
+.custom-table th[data-custom-column-id] {
+  position: relative;
 }
 
 .custom-column-heading {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 28px;
-  gap: 6px;
+  grid-template-columns: minmax(0, 1fr) 22px;
+  gap: 10px;
+  align-items: center;
+}
+
+.custom-table-cell-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 22px;
+  gap: 10px;
+  align-items: center;
+}
+
+.custom-table-cell-layout input {
+  width: 100%;
+}
+
+.custom-column-field {
+  position: relative;
+  min-width: 0;
+}
+
+.custom-column-field input {
+  width: 100%;
 }
 
 .custom-column-heading .danger-action {
-  width: 28px;
-  height: 36px;
+  width: 22px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0;
+  font-size: 12px;
+}
+
+.custom-table [data-remove-custom-row] {
+  width: 22px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0;
+  font-size: 12px;
+}
+
+.custom-column-resizer {
+  position: absolute;
+  z-index: 3;
+  top: 0;
+  right: -5px;
+  width: 10px;
+  height: 100%;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.custom-column-resizer::after {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--line-strong);
+  content: "";
+  opacity: 0.55;
+}
+
+.custom-column-resizer:hover::after,
+.custom-column-resizer:focus-visible::after,
+.custom-column-resizer.is-resizing::after {
+  background: var(--accent);
+  opacity: 1;
+}
+
+.custom-column-resizer:focus-visible {
+  outline: none;
+}
+
+body.resizing-table-column {
+  cursor: col-resize;
+  user-select: none;
 }
 
 .page-break-preview {
@@ -1391,10 +1696,8 @@ select {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .item-row,
-  .item-head,
-  .price-topic-footer {
-    grid-template-columns: 70px minmax(230px, 1.8fr) 96px 76px 64px 104px 104px 34px;
+  .price-terms-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .topic-heading {
@@ -1418,4 +1721,19 @@ select {
     grid-template-columns: 1fr;
   }
 
+}
+
+@media (max-width: 760px) {
+  .price-terms-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .additional-price-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .additional-price-heading .price-actions {
+    justify-content: flex-start;
+  }
 }

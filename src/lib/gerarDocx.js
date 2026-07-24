@@ -77,8 +77,18 @@ function normalizeTopics(data) {
   }).filter((topic) => topic.itens.length);
 }
 
+function normalizeObjectObservations(data = {}) {
+  const source = Array.isArray(data.objeto_observacoes) && data.objeto_observacoes.length
+    ? data.objeto_observacoes
+    : String(data.objeto || '').split(/\r?\n/);
+  return source
+    .map((item) => String(typeof item === 'string' ? item : item?.texto || item?.item || '').trim())
+    .filter(Boolean);
+}
+
 function prepareData(data) {
   const topicosPreco = normalizeTopics(data);
+  const objetoObservacoes = normalizeObjectObservations(data);
   const itensServico = topicosPreco
     .filter((topic) => topic.tipo === 'servico')
     .flatMap((topic) => topic.itens);
@@ -102,6 +112,8 @@ function prepareData(data) {
     .filter(Boolean);
   return {
     ...data,
+    objeto_observacoes: objetoObservacoes,
+    objeto: objetoObservacoes[0] || '',
     servicos_descricao: (data.servicos_descricao || []).map((item) => (
       typeof item === 'string' ? { item } : item
     )),
@@ -132,9 +144,10 @@ function gerarDocx(data, outputPath) {
     nullGetter: () => ''
   });
 
-  doc.render(prepareData(data));
+  const preparedData = prepareData(data);
+  doc.render(preparedData);
 
-  injectAdditionalBlocks(doc.getZip(), data);
+  injectAdditionalBlocks(doc.getZip(), preparedData);
 
   const buffer = doc.getZip().generate({
     type: 'nodebuffer',
@@ -152,11 +165,13 @@ function injectAdditionalBlocks(zip, proposalData = {}) {
   const validBlocks = Array.isArray(proposalData.blocos_adicionais)
     ? proposalData.blocos_adicionais.filter(Boolean)
     : [];
+  normalizeObservationBulletStyle(zip);
   const documentFile = zip.file('word/document.xml');
   if (!documentFile) return;
 
   const normalizedPriceHeaderXml = normalizeOfficialPriceHeader(documentFile.asText());
-  const normalizedFieldAlignmentXml = normalizeFixedFieldAlignment(normalizedPriceHeaderXml);
+  const normalizedObjectXml = renderFixedObjectObservations(normalizedPriceHeaderXml, proposalData);
+  const normalizedFieldAlignmentXml = normalizeFixedFieldAlignment(normalizedObjectXml);
   const originalDocumentXml = normalizeOptionalServiceLocation(normalizedFieldAlignmentXml, proposalData);
   const sectionLineXml = extractSectionLineParagraph(originalDocumentXml);
   const documentXml = removeFixedAdditionalInfoSection(originalDocumentXml);
@@ -168,6 +183,60 @@ function injectAdditionalBlocks(zip, proposalData = {}) {
     proposalData.secoes_excluidas
   );
   zip.file('word/document.xml', rebuiltDocument);
+}
+
+function normalizeObservationBulletStyle(zip) {
+  const numberingFile = zip.file('word/numbering.xml');
+  if (!numberingFile) return;
+
+  let numberingXml = numberingFile.asText();
+  const numberingInstance = Array.from(numberingXml.matchAll(/<w:num\b[\s\S]*?<\/w:num>/g))
+    .map((match) => match[0])
+    .find((value) => /\sw:numId="1"/.test(value));
+  const abstractNumberId = numberingInstance?.match(/<w:abstractNumId w:val="(\d+)"\/>/)?.[1];
+  if (!abstractNumberId) return;
+
+  const abstractPattern = new RegExp(
+    `<w:abstractNum\\b[^>]*\\sw:abstractNumId="${abstractNumberId}"[^>]*>[\\s\\S]*?<\\/w:abstractNum>`
+  );
+  numberingXml = numberingXml.replace(abstractPattern, (abstractXml) => abstractXml.replace(
+    /<w:lvl\b[^>]*\sw:ilvl="1"[^>]*>[\s\S]*?<\/w:lvl>/,
+    (levelXml) => {
+      let normalizedLevel = levelXml.replace(
+        /<w:lvlText\b[^>]*\/>/,
+        '<w:lvlText w:val="\u2022"/>'
+      );
+      normalizedLevel = normalizedLevel.replace(
+        /<w:rPr>[\s\S]*?<\/w:rPr>/,
+        '<w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:eastAsia="Calibri" w:cs="Calibri"/><w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr>'
+      );
+      return normalizedLevel;
+    }
+  ));
+
+  zip.file('word/numbering.xml', numberingXml);
+}
+
+function renderFixedObjectObservations(documentXml, proposalData = {}) {
+  const observations = normalizeObjectObservations(proposalData);
+  if (!observations.length) return documentXml;
+
+  const objectHeadingIndex = documentXml.indexOf('OBJETO');
+  const scopeHeadingIndex = documentXml.indexOf('ESCOPO DE FORNECIMENTO', objectHeadingIndex);
+  const firstObservationIndex = documentXml.indexOf(escapeXml(observations[0]), objectHeadingIndex);
+  if (objectHeadingIndex < 0
+    || scopeHeadingIndex < 0
+    || firstObservationIndex < 0
+    || firstObservationIndex >= scopeHeadingIndex) {
+    return documentXml;
+  }
+
+  const paragraphStart = findParagraphStart(documentXml, firstObservationIndex);
+  const paragraphEnd = documentXml.indexOf('</w:p>', firstObservationIndex);
+  if (paragraphStart < 0 || paragraphEnd < 0 || paragraphEnd >= scopeHeadingIndex) return documentXml;
+
+  const observationXml = observations.map((observation) => renderTopicObservation(observation)).join('');
+  return `${documentXml.slice(0, paragraphStart)}${observationXml}${documentXml.slice(paragraphEnd + '</w:p>'.length)}`;
 }
 
 function normalizeTemplateCurrencyCells(zip) {
@@ -495,7 +564,9 @@ function renderAdditionalBlock(block, sectionNumber, sectionLine) {
     return `${renderNumberedTopicHeading(sectionNumber, 'DOCUMENTA\u00c7\u00c3O', sectionLine)}${renderDocumentList(block, sectionNumber)}`;
   }
   if (block.tipo === 'preco') {
-    return `${renderNumberedTopicHeading(sectionNumber, 'PRE\u00c7O', sectionLine)}${renderAdditionalPrice(block, sectionNumber)}`;
+    const title = stripAutomaticNumber(block.titulo ?? 'PRE\u00c7O');
+    const heading = title ? renderNumberedTopicHeading(sectionNumber, title, sectionLine) : '';
+    return `${heading}${renderAdditionalPrice(block, sectionNumber)}`;
   }
   if (block.tipo === 'tabela') {
     const title = stripAutomaticNumber(block.titulo || '') || 'TABELA SEM NOME';
@@ -516,13 +587,26 @@ function renderStructuredTopic(block, number, sectionLineXml = '') {
   return `${heading}${topicObservations}${subtopicsXml}`;
 }
 
-function renderStructuredSubtopics(subtopics, parentNumber, depth = 1) {
+function flattenSubtopicDescendants(subtopics = []) {
+  return (Array.isArray(subtopics) ? subtopics : []).flatMap((subtopic) => [
+    { ...subtopic, subtopicos: [] },
+    ...flattenSubtopicDescendants(subtopic?.subtopicos)
+  ]);
+}
+
+function renderStructuredSubtopics(subtopics, parentNumber) {
   return (Array.isArray(subtopics) ? subtopics : []).map((subtopic, index) => {
     const number = `${parentNumber}.${index + 1}`;
     const title = stripAutomaticNumber(subtopic?.titulo || '') || 'Subt\u00f3pico sem nome';
     const observations = Array.isArray(subtopic?.observacoes) ? subtopic.observacoes : [];
-    const nested = Array.isArray(subtopic?.subtopicos) ? subtopic.subtopicos : [];
-    return `${renderSubtopicHeading(number, title, depth)}${observations.map((observation) => renderTopicObservation(observation, depth - 1)).join('')}${renderStructuredSubtopics(nested, number, depth + 1)}`;
+    const descendants = flattenSubtopicDescendants(subtopic?.subtopicos);
+    const descendantXml = descendants.map((descendant, descendantIndex) => {
+      const descendantNumber = `${number}.${descendantIndex + 1}`;
+      const descendantTitle = stripAutomaticNumber(descendant?.titulo || '') || 'Subt\u00f3pico sem nome';
+      const descendantObservations = Array.isArray(descendant?.observacoes) ? descendant.observacoes : [];
+      return `${renderSubtopicHeading(descendantNumber, descendantTitle, 2)}${descendantObservations.map((observation) => renderTopicObservation(observation, 1)).join('')}`;
+    }).join('');
+    return `${renderSubtopicHeading(number, title, 1)}${observations.map((observation) => renderTopicObservation(observation)).join('')}${descendantXml}`;
   }).join('');
 }
 
@@ -546,12 +630,11 @@ function renderNumberedTopicHeading(number, title, sectionLineXml = '') {
 }
 
 function renderSubtopicHeading(number, title, depth = 1) {
-  const numberIndent = 680 + (Math.max(1, depth) - 1) * 280;
-  const hangingIndent = 284;
-  const textIndent = numberIndent + hangingIndent;
+  const leftIndent = 425 + ((Math.max(1, depth) - 1) * 280);
   return `<w:p>
-    <w:pPr><w:pStyle w:val="PargrafodaLista"/><w:keepNext/><w:spacing w:before="80" w:after="30"/><w:ind w:left="${textIndent}" w:right="799" w:hanging="${hangingIndent}"/></w:pPr>
-    <w:r><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:eastAsia="Times New Roman" w:cs="Calibri"/><w:color w:val="000000"/><w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr><w:t xml:space="preserve">${escapeXml(number)}  ${escapeXml(title)}</w:t></w:r>
+    <w:pPr><w:pStyle w:val="PargrafodaLista"/><w:keepNext/><w:spacing w:before="80" w:after="30"/><w:ind w:left="${leftIndent}" w:right="799"/></w:pPr>
+    <w:r><w:rPr><w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/><w:b/><w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr><w:t xml:space="preserve">${escapeXml(number)}  </w:t></w:r>
+    <w:r><w:rPr><w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/><w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr><w:t>${escapeXml(title)}</w:t></w:r>
   </w:p>`;
 }
 
@@ -627,13 +710,37 @@ function renderRoundedDocumentListHeader(widths, sectionNumber) {
   );
 }
 
+function roundedHeaderCharacterUnits(value) {
+  return Array.from(String(value || '')).reduce((total, character) => {
+    if (character === ' ') return total + 0.32;
+    if (/[MW]/i.test(character)) return total + 0.82;
+    if (/[I1|]/.test(character)) return total + 0.34;
+    return total + 0.6;
+  }, 0);
+}
+
+function roundedHeaderFontSize(heading, width) {
+  const characterUnits = roundedHeaderCharacterUnits(heading);
+  if (!characterUnits) return 16;
+  const availablePoints = Math.max(12, (Number(width || 0) - 140) / 20);
+  const fittedHalfPoints = Math.floor((availablePoints / characterUnits) * 2);
+  return Math.max(12, Math.min(16, fittedHalfPoints));
+}
+
 function renderRoundedHeaderRow(headings, widths, options = {}) {
   const tableWidth = widths.reduce((sum, width) => sum + width, 0);
   const shapeName = options.shapeName || 'CabecalhoArredondado';
   const shapeNumber = options.shapeNumber || 9299;
   const anchorId = options.anchorId || 'B0000FFF';
   const outerGridSpan = options.outerGridSpan || headings.length;
-  const nestedCells = headings.map((heading, index) => `<w:tc>
+  const compactHeadings = Boolean(options.compactHeadings);
+  const headerRowHeight = 340;
+  const headerShapeHeight = 15.1;
+  const nestedCells = headings.map((heading, index) => {
+    const fontSize = compactHeadings ? roundedHeaderFontSize(heading, widths[index]) : 16;
+    const noWrap = compactHeadings ? '<w:noWrap/>' : '';
+    const spacing = '<w:spacing w:before="0" w:after="0"/>';
+    return `<w:tc>
     <w:tcPr>
       <w:tcW w:w="${widths[index]}" w:type="dxa"/>
       <w:tcBorders>
@@ -641,15 +748,17 @@ function renderRoundedHeaderRow(headings, widths, options = {}) {
         <w:right w:val="${index < headings.length - 1 ? 'single' : 'nil'}"${index < headings.length - 1 ? ' w:sz="6" w:space="0" w:color="404040"' : ''}/>
       </w:tcBorders>
       <w:tcMar><w:top w:w="35" w:type="dxa"/><w:left w:w="70" w:type="dxa"/><w:bottom w:w="35" w:type="dxa"/><w:right w:w="70" w:type="dxa"/></w:tcMar>
+      ${noWrap}
       <w:vAlign w:val="center"/>
     </w:tcPr>
-    <w:p><w:pPr><w:spacing w:before="0" w:after="0"/><w:jc w:val="center"/></w:pPr>
-      <w:r><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:eastAsia="Calibri" w:cs="Calibri"/><w:b/><w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr><w:t>${escapeXml(heading)}</w:t></w:r>
+    <w:p><w:pPr>${spacing}<w:jc w:val="center"/></w:pPr>
+      <w:r><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:eastAsia="Calibri" w:cs="Calibri"/><w:b/><w:sz w:val="${fontSize}"/><w:szCs w:val="${fontSize}"/></w:rPr><w:t>${escapeXml(heading)}</w:t></w:r>
     </w:p>
-  </w:tc>`).join('');
+  </w:tc>`;
+  }).join('');
 
   return `<w:tr>
-    <w:trPr><w:trHeight w:hRule="exact" w:val="340"/></w:trPr>
+    <w:trPr><w:trHeight w:hRule="exact" w:val="${headerRowHeight}"/></w:trPr>
     <w:tc>
       <w:tcPr>
         <w:tcW w:w="${tableWidth}" w:type="dxa"/><w:gridSpan w:val="${outerGridSpan}"/>
@@ -657,9 +766,9 @@ function renderRoundedHeaderRow(headings, widths, options = {}) {
         <w:tcMar><w:top w:w="0" w:type="dxa"/><w:left w:w="0" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:right w:w="0" w:type="dxa"/></w:tcMar>
         <w:vAlign w:val="center"/>
       </w:tcPr>
-      <w:p><w:pPr><w:spacing w:line="340" w:lineRule="exact"/><w:jc w:val="center"/></w:pPr>
+      <w:p><w:pPr><w:spacing w:line="${headerRowHeight}" w:lineRule="exact"/><w:jc w:val="center"/></w:pPr>
         <w:r><w:pict w14:anchorId="${anchorId}">
-          <v:roundrect id="${shapeName}" o:spid="_x0000_s${shapeNumber}" style="width:${tableWidth / 20}pt;height:15.1pt;mso-left-percent:-10001;mso-top-percent:-10001;mso-position-horizontal:absolute;mso-position-horizontal-relative:char;mso-position-vertical:absolute;mso-position-vertical-relative:line;mso-left-percent:-10001;mso-top-percent:-10001" arcsize="7864f" fillcolor="#bfbfbf" strokecolor="#404040">
+          <v:roundrect id="${shapeName}" o:spid="_x0000_s${shapeNumber}" style="width:${tableWidth / 20}pt;height:${headerShapeHeight.toFixed(1)}pt;mso-left-percent:-10001;mso-top-percent:-10001;mso-position-horizontal:absolute;mso-position-horizontal-relative:char;mso-position-vertical:absolute;mso-position-vertical-relative:line;mso-left-percent:-10001;mso-top-percent:-10001" arcsize="7864f" fillcolor="#bfbfbf" strokecolor="#404040">
             <v:textbox inset="0,0,0,0"><w:txbxContent>
               <w:tbl>
                 <w:tblPr><w:tblW w:w="${tableWidth}" w:type="dxa"/><w:tblBorders><w:top w:val="nil"/><w:left w:val="nil"/><w:bottom w:val="nil"/><w:right w:val="nil"/><w:insideH w:val="nil"/><w:insideV w:val="nil"/></w:tblBorders><w:tblLayout w:type="fixed"/></w:tblPr>
@@ -819,21 +928,45 @@ function renderAdditionalPriceLabelValue(label, value) {
   </w:p>`;
 }
 
+function calculateCustomTableWidths(columns, tableWidth) {
+  const validWidths = columns
+    .map((column) => Number(column.largura))
+    .filter((width) => Number.isFinite(width) && width > 0);
+  const fallbackWeight = validWidths.length
+    ? validWidths.reduce((sum, width) => sum + width, 0) / validWidths.length
+    : 1;
+  const weights = columns.map((column) => {
+    const width = Number(column.largura);
+    return Number.isFinite(width) && width > 0 ? width : fallbackWeight;
+  });
+  const totalWeight = weights.reduce((sum, width) => sum + width, 0);
+  let cumulativeWeight = 0;
+  let allocatedWidth = 0;
+
+  return weights.map((weight, index) => {
+    cumulativeWeight += weight;
+    const boundary = index === weights.length - 1
+      ? tableWidth
+      : Math.round((cumulativeWeight / totalWeight) * tableWidth);
+    const width = boundary - allocatedWidth;
+    allocatedWidth = boundary;
+    return width;
+  });
+}
+
 function renderCustomTable(block, sectionNumber = 0) {
   const columns = Array.isArray(block.colunas)
     ? block.colunas.filter(Boolean).map((column, index) => ({
       id: String(column.id || `coluna-${index + 1}`),
-      nome: String(column.nome || `Coluna ${index + 1}`)
+      nome: String(column.nome || `Coluna ${index + 1}`),
+      largura: Number(column.largura)
     }))
     : [];
   if (!columns.length) return '';
 
   const rows = Array.isArray(block.linhas) ? block.linhas.filter(Boolean) : [];
   const tableWidth = 10245;
-  const baseWidth = Math.floor(tableWidth / columns.length);
-  const widths = columns.map((_, index) => (
-    index === columns.length - 1 ? tableWidth - (baseWidth * index) : baseWidth
-  ));
+  const widths = calculateCustomTableWidths(columns, tableWidth);
   const numberSeed = Math.max(0, Math.trunc(Number(sectionNumber) || 0));
   const headerXml = renderRoundedHeaderRow(
     columns.map((column) => column.nome.toUpperCase()),
@@ -841,7 +974,8 @@ function renderCustomTable(block, sectionNumber = 0) {
     {
       shapeName: `CabecalhoTabelaAdicional${numberSeed}`,
       shapeNumber: 9700 + numberSeed,
-      anchorId: (0xE0000000 + numberSeed).toString(16).toUpperCase().slice(-8)
+      anchorId: (0xE0000000 + numberSeed).toString(16).toUpperCase().slice(-8),
+      compactHeadings: true
     }
   );
   const rowsXml = rows.map((row) => {

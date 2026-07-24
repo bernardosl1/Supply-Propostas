@@ -137,7 +137,7 @@
           <form id="proposal-form" class="proposal-form" novalidate>
             <div class="form-alert" id="form-alert" hidden></div>
 
-            <section class="form-section" id="proposal-import">
+            <section class="form-section" id="proposal-import" hidden>
               <div class="section-heading import-heading">
                 <div>
                   <p class="eyebrow">Importar proposta</p>
@@ -185,12 +185,13 @@
                   <p class="eyebrow"><span data-section-number>2.</span> Objeto</p>
                 </div>
                 <div class="fixed-section-actions">
+                  <button class="small-action" type="button" data-add-object-observation>Adicionar observação</button>
                   <button class="section-drag-handle" type="button" draggable="true" title="Arrastar seção" aria-label="Arrastar Objeto">⋮⋮</button>
                   <button class="danger-action" type="button" data-remove-fixed-section="objeto" title="Excluir bloco Objeto" aria-label="Excluir bloco Objeto">x</button>
                 </div>
               </div>
-              <div class="field-grid">
-                <label class="full">Serviço<textarea name="objeto" rows="2" required></textarea></label>
+              <div class="object-observation-editor">
+                <div id="object-observations" class="topic-observations"></div>
               </div>
             </section>
 

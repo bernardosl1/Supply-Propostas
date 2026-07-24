@@ -12,6 +12,7 @@ const estrutura = normalizarEstruturaModelo({
   empresa_cliente: 'Cliente completo',
   numero_documento: 'PROP-123',
   objeto: 'Objeto integral da proposta',
+  objeto_observacoes: ['Objeto integral da proposta', 'Segunda observa\u00e7\u00e3o'],
   servicos_descricao: ['Inspeção completa'],
   equipe_tecnica_itens: ['Técnico responsável'],
   secoes_excluidas: ['escopo'],
@@ -34,6 +35,7 @@ const estrutura = normalizarEstruturaModelo({
     {
       id: 'preco-1',
       tipo: 'preco',
+      titulo: 'INVESTIMENTO',
       topicos_preco: [{ titulo: 'LOCAÇÃO', tipo: 'personalizado', itens: [{ descricao: 'Item', valor: 500 }] }],
       preco_total_numero: 500
     }
@@ -44,6 +46,7 @@ assert.deepEqual(estrutura.secoes_excluidas, ['escopo']);
 assert.equal(estrutura.empresa_cliente, 'Cliente completo');
 assert.equal(estrutura.numero_documento, 'PROP-123');
 assert.equal(estrutura.objeto, 'Objeto integral da proposta');
+assert.deepEqual(estrutura.objeto_observacoes, ['Objeto integral da proposta', 'Segunda observa\u00e7\u00e3o']);
 assert.deepEqual(estrutura.servicos_descricao, ['Inspeção completa']);
 assert.deepEqual(estrutura.equipe_tecnica_itens, ['Técnico responsável']);
 assert.equal(Object.hasOwn(estrutura, '_historico_id'), false);
@@ -55,6 +58,7 @@ assert.equal(estrutura.blocos_adicionais[1].linhas[0].valores.equipamento, 'Bomb
 assert.equal(estrutura.blocos_adicionais[1].colunas[0].nome, 'Equipamento');
 assert.equal(estrutura.blocos_adicionais[2].topicos_preco[0].itens[0].descricao, 'Item');
 assert.equal(estrutura.blocos_adicionais[2].preco_total_numero, 500);
+assert.equal(estrutura.blocos_adicionais[2].titulo, 'INVESTIMENTO');
 
 const modelo = salvarModelo({ nome: 'Padrão offshore', empresa: 'Cliente Teste', estrutura });
 assert.ok(modelo.id);

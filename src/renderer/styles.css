@@ -1203,59 +1203,6 @@ select {
   gap: 8px;
 }
 
-.object-observation-editor {
-  display: grid;
-  gap: 8px;
-}
-
-.fixed-proposal-section[data-proposal-section="objeto"] {
-  gap: 12px;
-  padding: 18px;
-}
-
-.fixed-proposal-section[data-proposal-section="objeto"] .section-heading {
-  gap: 12px;
-}
-
-.fixed-proposal-section[data-proposal-section="objeto"] .fixed-section-actions {
-  gap: 6px;
-}
-
-.fixed-proposal-section[data-proposal-section="objeto"] .small-action {
-  min-height: 32px;
-  padding: 0 10px;
-  font-size: 12px;
-}
-
-.fixed-proposal-section[data-proposal-section="objeto"] .section-drag-handle {
-  width: 34px;
-  height: 32px;
-  min-height: 32px;
-}
-
-.fixed-proposal-section[data-proposal-section="objeto"] .danger-action {
-  width: 32px;
-  height: 32px;
-  min-height: 32px;
-}
-
-.fixed-proposal-section[data-proposal-section="objeto"] .topic-observation-row {
-  grid-template-columns: 18px minmax(0, 1fr) 30px;
-  gap: 8px;
-}
-
-.fixed-proposal-section[data-proposal-section="objeto"] [data-topic-observation] {
-  height: 34px;
-  padding: 0 9px;
-  font-size: 13px;
-}
-
-.fixed-proposal-section[data-proposal-section="objeto"] .topic-observation-row .danger-action {
-  width: 30px;
-  height: 30px;
-  min-height: 30px;
-}
-
 .topic-observation-row {
   display: grid;
   grid-template-columns: 22px minmax(0, 1fr) 34px;

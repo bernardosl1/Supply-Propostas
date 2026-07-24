@@ -154,22 +154,17 @@ function createWindow() {
               document.querySelector('[name="empresa_cliente"]').value = 'Cliente Smoke';
               document.querySelector('[name="numero_documento"]').value = 'SMOKE-001';
               document.querySelector('[name="responsavel_nome"]').value = 'Responsavel Smoke';
-              const objectSection = document.querySelector('[data-proposal-section="objeto"]');
-              objectSection.querySelector('[data-topic-observation]').value = 'Teste de geração automática';
-              objectSection.querySelector('[data-add-object-observation]').click();
-              objectSection.querySelectorAll('[data-topic-observation]')[1].value = 'Segunda observação do objeto';
-              const objectAddButton = objectSection.querySelector('[data-add-object-observation]');
-              const objectFirstRow = objectSection.querySelector('.topic-observation-row');
-              const objectInputHeight = objectFirstRow.querySelector('input').getBoundingClientRect().height;
-              const objectDeleteHeight = objectFirstRow.querySelector('.danger-action').getBoundingClientRect().height;
-              if (!objectAddButton.closest('.section-heading')
-                || objectInputHeight > 35
-                || objectDeleteHeight > 31
-                || objectSection.getBoundingClientRect().height > 160) {
-                reject(new Error('Bloco Objeto n\u00e3o ficou compacto e alinhado'));
+              const excludedSections = collectFormData().secoes_excluidas;
+              if (document.querySelector('[data-proposal-section="objeto"]')
+                || document.querySelector('[data-add-object-observation]')
+                || document.querySelector('[data-proposal-section="escopo"]')
+                || document.querySelector('[data-add-service]')
+                || document.querySelector('[data-add-technical-team]')
+                || !excludedSections.includes('objeto')
+                || !excludedSections.includes('escopo')) {
+                reject(new Error('Blocos Objeto ou Escopo de fornecimento ainda est\u00e3o dispon\u00edveis no formul\u00e1rio'));
                 return;
               }
-              document.querySelector('[data-service-description]').value = 'Serviço de teste';
               document.querySelector('[data-add-flex-block="texto"]').click();
               const topic = document.querySelector('#proposal-sections .flexible-block:last-child');
               topic.querySelector('[data-flex-title]').value = 'CRONOGRAMA';
@@ -190,8 +185,8 @@ function createWindow() {
               nestedSiblings[1].querySelector('[data-flex-subtopic-title]').value = 'Encerramento';
               if (nestedSiblings.length !== 2
                 || nestedSubtopic.querySelector('[data-add-nested-subtopic]').textContent.trim() !== '+ Mesmo n\u00edvel'
-                || nestedSiblings[0].querySelector('[data-flex-subtopic-number]').textContent !== '4.1.1'
-                || nestedSiblings[1].querySelector('[data-flex-subtopic-number]').textContent !== '4.1.2') {
+                || nestedSiblings[0].querySelector('[data-flex-subtopic-number]').textContent !== '2.1.1'
+                || nestedSiblings[1].querySelector('[data-flex-subtopic-number]').textContent !== '2.1.2') {
                 reject(new Error('Subt\u00f3picos adicionais n\u00e3o foram criados no mesmo n\u00edvel'));
                 return;
               }

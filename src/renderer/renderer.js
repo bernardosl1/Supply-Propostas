@@ -20,9 +20,6 @@ const numberFormatter = new Intl.NumberFormat('pt-BR', {
 
 const versionTarget = document.querySelector('.sidebar-note span:last-child');
 const form = document.querySelector('#proposal-form');
-const servicesList = document.querySelector('#services-list');
-const technicalTeamList = document.querySelector('#technical-team-list');
-const objectObservations = document.querySelector('#object-observations');
 const resultPanel = document.querySelector('#result-panel');
 const resultPath = document.querySelector('#result-path');
 const pdfStatus = document.querySelector('#pdf-status');
@@ -61,7 +58,7 @@ const FLEXIBLE_BLOCK_LABELS = {
   quebra_pagina: 'Quebra de p\u00e1gina'
 };
 
-const DEFAULT_FIXED_SECTION_ORDER = ['dados_comerciais', 'objeto', 'escopo'];
+const DEFAULT_FIXED_SECTION_ORDER = ['dados_comerciais'];
 
 const DEFAULT_PRICE_TOPICS = [
   { tipo: 'servico', titulo: 'Itens de servi\u00e7o', ncm: '-----', un: 'HH' },
@@ -124,15 +121,6 @@ function showView(viewName) {
 }
 
 function bindForm() {
-  document.querySelector('[data-add-service]').addEventListener('click', () => addServiceDescription(''));
-  document.querySelector('[data-add-technical-team]').addEventListener('click', () => addTechnicalTeamMember(''));
-  document.querySelector('[data-add-object-observation]').addEventListener('click', () => addObjectObservation(''));
-  document.querySelectorAll('[data-remove-fixed-section]').forEach((button) => {
-    button.addEventListener('click', () => setFixedSectionVisible(button.dataset.removeFixedSection, false));
-  });
-  document.querySelectorAll('[data-restore-fixed-section]').forEach((button) => {
-    button.addEventListener('click', () => setFixedSectionVisible(button.dataset.restoreFixedSection, true));
-  });
   document.querySelectorAll('[data-add-flex-block]').forEach((button) => {
     button.addEventListener('click', () => addFlexibleBlock({ tipo: button.dataset.addFlexBlock }));
   });
@@ -172,8 +160,6 @@ function renderProposalPreview(data) {
   const blocks = Array.isArray(data.blocos_adicionais) ? data.blocos_adicionais : [];
   const sections = new Map();
   sections.set('dados_comerciais', { type: 'fixed', id: 'dados_comerciais' });
-  if (!data.secoes_excluidas?.includes('objeto')) sections.set('objeto', { type: 'fixed', id: 'objeto' });
-  if (!data.secoes_excluidas?.includes('escopo')) sections.set('escopo', { type: 'fixed', id: 'escopo' });
   blocks.forEach((block, index) => sections.set(`flex:${block.id || index}`, { type: 'flex', block }));
 
   const ordered = [];
@@ -237,28 +223,7 @@ function renderFixedPreviewSection(sectionId, number, data) {
       </section>
     `;
   }
-  if (sectionId === 'objeto') {
-    const observations = objectObservationEntries(data);
-    return `
-      <section class="preview-section">
-        <h3 class="preview-section-title">${number}. Objeto</h3>
-        ${renderPreviewList(observations)}
-      </section>
-    `;
-  }
-  const descriptions = Array.isArray(data.servicos_descricao) ? data.servicos_descricao : [];
-  const team = Array.isArray(data.equipe_tecnica_itens) ? data.equipe_tecnica_itens : [];
-  const locationAndDate = [data.local_servico, data.data_servico].filter(Boolean).join(' | ');
-  return `
-    <section class="preview-section">
-      <h3 class="preview-section-title">${number}. Escopo de fornecimento</h3>
-      <h4 class="preview-subsection-title">${number}.1 Descrição dos serviços</h4>
-      ${renderPreviewList(descriptions)}
-      <h4 class="preview-subsection-title">${number}.2 Equipe técnica</h4>
-      ${renderPreviewList(team)}
-      ${locationAndDate ? `<h4 class="preview-subsection-title">${number}.3 Local e data dos serviços</h4><p>${escapeHtml(locationAndDate)}</p>` : ''}
-    </section>
-  `;
+  return '';
 }
 
 function renderFlexiblePreviewSection(block, number) {
@@ -588,9 +553,6 @@ function fillDefaults() {
 function resetFormToDefaults() {
   state.editingId = '';
   form.reset();
-  servicesList.innerHTML = '';
-  technicalTeamList.innerHTML = '';
-  objectObservations.innerHTML = '';
   clearFlexibleBlocks();
   restoreDefaultFixedSectionOrder();
   updateFlexibleEmptyState();
@@ -598,33 +560,8 @@ function resetFormToDefaults() {
   state.lastOutputPath = '';
   document.querySelector('#form-title').textContent = 'Formulário da proposta';
 
-  addServiceDescription('');
-  addTechnicalTeamMember('');
-  addObjectObservation('');
-  applyExcludedFixedSections([]);
   fillDefaults();
   recalculate();
-}
-
-function setFixedSectionVisible(sectionId, visible) {
-  if (!['objeto', 'escopo'].includes(sectionId)) return;
-  const section = flexibleBlocks.querySelector(`:scope > [data-proposal-section="${sectionId}"]`);
-  const restoreButton = document.querySelector(`[data-restore-fixed-section="${sectionId}"]`);
-  if (!section || !restoreButton) return;
-
-  section.hidden = !visible;
-  restoreButton.hidden = visible;
-  section.querySelectorAll('input, textarea, select, button').forEach((control) => {
-    control.disabled = !visible;
-  });
-  if (visible) flexibleBlocks.appendChild(section);
-  renumberFlexibleTopics();
-  recalculate();
-}
-
-function applyExcludedFixedSections(excludedSections = []) {
-  const excluded = new Set(Array.isArray(excludedSections) ? excludedSections : []);
-  ['objeto', 'escopo'].forEach((sectionId) => setFixedSectionVisible(sectionId, !excluded.has(sectionId)));
 }
 
 function setValue(name, value) {
@@ -632,34 +569,6 @@ function setValue(name, value) {
   if (field) {
     field.value = value;
   }
-}
-
-function addServiceDescription(value) {
-  const row = document.createElement('div');
-  row.className = 'stack-row';
-  row.innerHTML = `
-    <input data-service-description value="${escapeHtml(value)}" placeholder="Descrição do serviço">
-    <button class="danger-action" type="button" title="Remover">x</button>
-  `;
-  row.querySelector('button').addEventListener('click', () => {
-    row.remove();
-    recalculate();
-  });
-  servicesList.appendChild(row);
-}
-
-function addTechnicalTeamMember(value) {
-  const row = document.createElement('div');
-  row.className = 'stack-row';
-  row.innerHTML = `
-    <input data-technical-team value="${escapeHtml(value)}" placeholder="Integrante / função da equipe técnica">
-    <button class="danger-action" type="button" title="Remover">x</button>
-  `;
-  row.querySelector('button').addEventListener('click', () => {
-    row.remove();
-    recalculate();
-  });
-  technicalTeamList.appendChild(row);
 }
 
 function addFlexibleBlock(data = {}, afterElement = null) {
@@ -865,28 +774,6 @@ function addTopicObservation(container, value, options = {}) {
   });
   container.appendChild(row);
   return row;
-}
-
-function addObjectObservation(value) {
-  return addTopicObservation(objectObservations, value, {
-    keepOne: true,
-    placeholder: 'Descreva o objeto da proposta'
-  });
-}
-
-function objectObservationEntries(data = {}) {
-  const source = Array.isArray(data.objeto_observacoes) && data.objeto_observacoes.length
-    ? data.objeto_observacoes
-    : String(data.objeto || '').split(/\r?\n/);
-  return source
-    .map((item) => String(typeof item === 'string' ? item : item?.texto || item?.item || '').trim())
-    .filter(Boolean);
-}
-
-function applyObjectObservations(data = {}) {
-  objectObservations.innerHTML = '';
-  objectObservationEntries(data).forEach((observation) => addObjectObservation(observation));
-  if (!objectObservations.children.length) addObjectObservation('');
 }
 
 function addFlexibleSubtopic(block, data = {}, targetContainer = null) {
@@ -1486,7 +1373,6 @@ function applyImportedData(result) {
   });
 
   const importedData = result.data || {};
-  applyObjectObservations(importedData);
   const importedTopics = importedData.topicos_preco || result.topicos_preco;
   const topics = Array.isArray(importedTopics) && importedTopics.length
     ? importedTopics
@@ -1494,18 +1380,6 @@ function applyImportedData(result) {
       itens_servico: result.itens_servico || importedData.itens_servico,
       itens_consumiveis: result.itens_consumiveis || importedData.itens_consumiveis
     });
-
-  const descriptions = result.servicos_descricao || result.data?.servicos_descricao || [];
-  if (descriptions.length) {
-    servicesList.innerHTML = '';
-    descriptions.forEach((item) => addServiceDescription(typeof item === 'string' ? item : item.item));
-  }
-
-  const technicalTeam = technicalTeamEntries(result.data || {});
-  if (technicalTeam.length) {
-    technicalTeamList.innerHTML = '';
-    technicalTeam.forEach((item) => addTechnicalTeamMember(item));
-  }
 
   clearFlexibleBlocks();
   const migratedPrice = migrateLegacyPriceData(importedData, topics);
@@ -1683,25 +1557,6 @@ function validateProposal() {
     if (!focusTarget) focusTarget = field;
   });
 
-  const objectSection = flexibleBlocks.querySelector(':scope > [data-proposal-section="objeto"]');
-  const objectEntries = collectTopicObservations(objectObservations);
-  if (!objectSection?.hidden && !objectEntries.length) {
-    messages.push('Informe o objeto da proposta.');
-    const field = objectObservations.querySelector('[data-topic-observation]');
-    field?.classList.add('invalid');
-    if (!focusTarget) focusTarget = field;
-  }
-
-  const scopeSection = flexibleBlocks.querySelector(':scope > [data-proposal-section="escopo"]');
-  const descriptions = Array.from(document.querySelectorAll('[data-service-description]'))
-    .filter((input) => input.value.trim());
-  if (!scopeSection?.hidden && !descriptions.length) {
-    messages.push('Adicione pelo menos uma descrição de serviço.');
-    const field = document.querySelector('[data-service-description]');
-    field?.classList.add('invalid');
-    if (!focusTarget) focusTarget = field;
-  }
-
   document.querySelectorAll('.item-row').forEach((row) => {
     const descricao = readRowField(row, 'descricao');
     const unit = readNumber(readRowField(row, 'valor_unit'));
@@ -1751,20 +1606,9 @@ function collectFormData() {
     data[key] = String(value).trim();
   });
 
-  data.objeto_observacoes = collectTopicObservations(objectObservations);
-  data.objeto = data.objeto_observacoes.join('\n');
-  data.secoes_excluidas = ['objeto', 'escopo'].filter((sectionId) => {
-    const section = flexibleBlocks.querySelector(`:scope > [data-proposal-section="${sectionId}"]`);
-    return Boolean(section?.hidden);
-  });
-
-  data.servicos_descricao = Array.from(document.querySelectorAll('[data-service-description]'))
-    .map((input) => input.value.trim())
-    .filter(Boolean);
-  data.equipe_tecnica_itens = Array.from(document.querySelectorAll('[data-technical-team]'))
-    .map((input) => input.value.trim())
-    .filter(Boolean);
-  data.equipe_tecnica = data.equipe_tecnica_itens.join(' | ');
+  data.objeto_observacoes = [];
+  data.objeto = '';
+  data.secoes_excluidas = ['objeto', 'escopo'];
   data.blocos_adicionais = collectFlexibleBlocks();
   data.ordem_secoes = collectProposalSectionOrder();
   data.topicos_preco = [];
@@ -2003,8 +1847,6 @@ function loadProposalIntoForm(proposal, options = {}) {
   const data = proposal.data || {};
   state.editingId = options.duplicate ? '' : proposal.id;
   form.reset();
-  servicesList.innerHTML = '';
-  technicalTeamList.innerHTML = '';
   clearFlexibleBlocks();
   restoreDefaultFixedSectionOrder();
   resultPanel.hidden = true;
@@ -2016,15 +1858,6 @@ function loadProposalIntoForm(proposal, options = {}) {
       ? `${data.numero_documento || proposal.numero_documento}-COPIA`
       : data.numero_documento
   });
-  applyObjectObservations(data);
-  applyExcludedFixedSections(data.secoes_excluidas);
-
-  (data.servicos_descricao || []).forEach((item) => addServiceDescription(typeof item === 'string' ? item : item.item));
-  if (!servicesList.children.length) addServiceDescription('');
-
-  technicalTeamEntries(data).forEach((item) => addTechnicalTeamMember(item));
-  if (!technicalTeamList.children.length) addTechnicalTeamMember('');
-
   const topics = Array.isArray(data.topicos_preco) && data.topicos_preco.length
     ? data.topicos_preco
     : legacyTopicsFromData(data);
@@ -2044,16 +1877,6 @@ function fillFormFields(data) {
     if (!field.name || data[field.name] == null || Array.isArray(data[field.name])) return;
     field.value = data[field.name];
   });
-}
-
-function technicalTeamEntries(data = {}) {
-  if (Array.isArray(data.equipe_tecnica_itens)) {
-    return data.equipe_tecnica_itens.map((item) => String(item).trim()).filter(Boolean);
-  }
-  return String(data.equipe_tecnica || '')
-    .split('|')
-    .map((item) => item.trim())
-    .filter(Boolean);
 }
 
 async function exportPdf(docxPath) {

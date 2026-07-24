@@ -630,11 +630,11 @@ function renderNumberedTopicHeading(number, title, sectionLineXml = '') {
 }
 
 function renderSubtopicHeading(number, title, depth = 1) {
-  const leftIndent = 425 + ((Math.max(1, depth) - 1) * 280);
+  const leftIndent = 964 + ((Math.max(1, depth) - 1) * 280);
   return `<w:p>
-    <w:pPr><w:pStyle w:val="PargrafodaLista"/><w:keepNext/><w:spacing w:before="80" w:after="30"/><w:ind w:left="${leftIndent}" w:right="799"/></w:pPr>
-    <w:r><w:rPr><w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/><w:b/><w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr><w:t xml:space="preserve">${escapeXml(number)}  </w:t></w:r>
-    <w:r><w:rPr><w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/><w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr><w:t>${escapeXml(title)}</w:t></w:r>
+    <w:pPr><w:pStyle w:val="PargrafodaLista"/><w:keepNext/><w:ind w:left="${leftIndent}" w:right="799" w:hanging="284"/></w:pPr>
+    <w:r><w:rPr><w:rFonts w:ascii="Calibri" w:eastAsia="Times New Roman" w:hAnsi="Calibri" w:cs="Calibri"/><w:b/><w:color w:val="000000"/><w:sz w:val="16"/><w:szCs w:val="16"/><w:lang w:eastAsia="pt-BR"/></w:rPr><w:t xml:space="preserve">${escapeXml(number)}  </w:t></w:r>
+    <w:r><w:rPr><w:rFonts w:ascii="Calibri" w:eastAsia="Times New Roman" w:hAnsi="Calibri" w:cs="Calibri"/><w:color w:val="000000"/><w:sz w:val="16"/><w:szCs w:val="16"/><w:lang w:eastAsia="pt-BR"/></w:rPr><w:t>${escapeXml(title)}</w:t></w:r>
   </w:p>`;
 }
 
@@ -646,9 +646,9 @@ function renderTopicObservation(value, nestedDepth = 0) {
     <w:pPr>
       <w:pStyle w:val="PargrafodaLista"/>
       <w:numPr><w:ilvl w:val="1"/><w:numId w:val="1"/></w:numPr>
-      <w:ind w:left="${leftIndent}" w:right="799" w:hanging="227"/><w:spacing w:after="20"/>
+      <w:ind w:left="${leftIndent}" w:right="799" w:hanging="227"/>
     </w:pPr>
-    <w:r><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:eastAsia="Times New Roman" w:cs="Calibri"/><w:color w:val="000000"/><w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr><w:t xml:space="preserve">${escapeXml(String(text).trim())}</w:t></w:r>
+    <w:r><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:eastAsia="Times New Roman" w:cs="Calibri"/><w:color w:val="000000"/><w:sz w:val="16"/><w:szCs w:val="16"/><w:lang w:eastAsia="pt-BR"/></w:rPr><w:t xml:space="preserve">${escapeXml(String(text).trim())}</w:t></w:r>
   </w:p>`;
 }
 

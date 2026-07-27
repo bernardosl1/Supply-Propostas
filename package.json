@@ -1,6 +1,6 @@
 {
   "name": "proposta-app",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Gerador local de propostas comerciais da Supply Marine.",
   "main": "main.js",
   "scripts": {

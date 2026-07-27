@@ -611,6 +611,11 @@ h2 {
   padding-left: 24px;
 }
 
+.proposal-preview-page li.preview-observation-branca {
+  list-style-type: circle;
+  margin-left: 18px;
+}
+
 .preview-table {
   width: 100%;
   margin-top: 10px;
@@ -1215,6 +1220,45 @@ select {
   font-size: 20px;
   line-height: 1;
   text-align: center;
+}
+
+.topic-observation-row.topic-observation-white {
+  margin-left: 18px;
+}
+
+.topic-observation-row.topic-observation-white .topic-bullet {
+  font-family: Arial, sans-serif;
+  font-size: 16px;
+}
+
+.embedded-topic-tables {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.embedded-topic-table {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.embedded-topic-table-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.embedded-topic-table-heading .danger-action {
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
 }
 
 .flex-subtopic {

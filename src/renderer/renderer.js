@@ -234,7 +234,7 @@ function renderFlexiblePreviewSection(block, number) {
       : block.titulo || 'Tópico sem nome';
   let content = '';
   if (block.tipo === 'texto') {
-    content = `${renderPreviewList(block.observacoes)}${renderPreviewSubtopics(block.subtopicos, String(number))}`;
+    content = `${renderPreviewList(block.observacoes)}${renderEmbeddedTablesPreview(block.tabelas)}${renderPreviewSubtopics(block.subtopicos, String(number))}`;
   } else if (block.tipo === 'lista') {
     content = renderDocumentationPreview(block.linhas || []);
   } else if (block.tipo === 'tabela') {
@@ -257,9 +257,11 @@ function renderPreviewSubtopics(subtopics = [], parentNumber) {
     return `
       <h4 class="preview-subsection-title">${number} ${escapeHtml(subtopic.titulo || 'Subtópico sem nome')}</h4>
       ${renderPreviewList(subtopic.observacoes)}
+      ${renderEmbeddedTablesPreview(subtopic.tabelas)}
       ${descendants.map((descendant, descendantIndex) => `
         <h4 class="preview-subsection-title preview-nested-subsection-title">${number}.${descendantIndex + 1} ${escapeHtml(descendant.titulo || 'Subtópico sem nome')}</h4>
         ${renderPreviewList(descendant.observacoes)}
+        ${renderEmbeddedTablesPreview(descendant.tabelas)}
       `).join('')}
     `;
   }).join('');
@@ -307,6 +309,12 @@ function renderCustomTablePreview(block) {
   `;
 }
 
+function renderEmbeddedTablesPreview(tables = []) {
+  return (Array.isArray(tables) ? tables : [])
+    .map((table) => renderCustomTablePreview(table))
+    .join('');
+}
+
 function renderPricePreview(block) {
   const topics = Array.isArray(block.topicos_preco) ? block.topicos_preco : [];
   const topicHtml = topics.map((topic) => `
@@ -331,8 +339,15 @@ function renderPricePreview(block) {
 }
 
 function renderPreviewList(items = []) {
-  const normalized = items.map((item) => typeof item === 'string' ? item : item?.item || '').filter(Boolean);
-  return normalized.length ? `<ul>${normalized.map((item) => `<li>${previewMultiline(item)}</li>`).join('')}</ul>` : previewEmpty();
+  const normalized = items
+    .map((item) => ({
+      text: typeof item === 'string' ? item : item?.texto || item?.item || '',
+      type: typeof item === 'object' && item?.tipo === 'branca' ? 'branca' : 'preta'
+    }))
+    .filter((item) => item.text);
+  return normalized.length
+    ? `<ul>${normalized.map((item) => `<li class="preview-observation-${item.type}">${previewMultiline(item.text)}</li>`).join('')}</ul>`
+    : previewEmpty();
 }
 
 function previewMultiline(value) {
@@ -598,6 +613,8 @@ function addFlexibleBlock(data = {}, afterElement = null) {
     ? `
       <button class="small-action" type="button" data-add-subtopic>+ Subt\u00f3pico</button>
       <button class="small-action" type="button" data-add-topic-observation>+ Observa\u00e7\u00e3o</button>
+      <button class="small-action" type="button" data-add-white-topic-observation>+ Obs. branca</button>
+      <button class="small-action" type="button" data-add-topic-table>+ Tabela</button>
     `
     : '';
   const actionButtons = `${topicCreationButtons}${moveButton}${managementButtons}`;
@@ -670,17 +687,24 @@ function renderFlexibleBlockBody(block, data = {}) {
   if (type === 'texto') {
     body.innerHTML = `
       <div class="topic-observations" data-topic-observations></div>
+      <div class="embedded-topic-tables" data-topic-tables></div>
       <div class="flex-subtopics" data-flex-subtopics></div>
     `;
     const observations = Array.isArray(data.observacoes) && data.observacoes.length
       ? data.observacoes
       : (data.conteudo ? String(data.conteudo).split(/\r?\n/).filter(Boolean) : []);
     observations.forEach((observation) => addTopicObservation(body.querySelector('[data-topic-observations]'), observation));
+    const tablesContainer = body.querySelector('[data-topic-tables]');
+    (Array.isArray(data.tabelas) ? data.tabelas : []).forEach((table) => addEmbeddedTopicTable(tablesContainer, table));
     const subtopicsContainer = body.querySelector('[data-flex-subtopics]');
     normalizeSubtopicHierarchy(data.subtopicos || []).forEach((subtopic) => addFlexibleSubtopic(block, subtopic, subtopicsContainer));
     block.querySelector('[data-add-topic-observation]').addEventListener('click', () => {
       addTopicObservation(body.querySelector('[data-topic-observations]'), '');
     });
+    block.querySelector('[data-add-white-topic-observation]').addEventListener('click', () => {
+      addTopicObservation(body.querySelector('[data-topic-observations]'), { texto: '', tipo: 'branca' });
+    });
+    block.querySelector('[data-add-topic-table]').addEventListener('click', () => addEmbeddedTopicTable(tablesContainer, {}));
     block.querySelector('[data-add-subtopic]').addEventListener('click', () => addFlexibleSubtopic(block, {}));
     return;
   }
@@ -756,10 +780,13 @@ function renderFlexiblePriceEditor(block, data = {}) {
 }
 
 function addTopicObservation(container, value, options = {}) {
+  const type = options.type || (typeof value === 'object' && value?.tipo === 'branca' ? 'branca' : 'preta');
+  const isWhite = type === 'branca';
   const row = document.createElement('div');
-  row.className = 'topic-observation-row';
+  row.className = `topic-observation-row${isWhite ? ' topic-observation-white' : ''}`;
+  row.dataset.observationType = type;
   row.innerHTML = `
-    <span class="topic-bullet">\u2022</span>
+    <span class="topic-bullet">${isWhite ? "&#9675;" : "&#8226;"}</span>
     <input data-topic-observation value="${escapeHtml(typeof value === 'string' ? value : value?.texto || '')}" placeholder="${escapeHtml(options.placeholder || 'Observa\u00e7\u00e3o')}">
     <button class="danger-action" type="button" title="Remover observa\u00e7\u00e3o">x</button>
   `;
@@ -790,15 +817,20 @@ function addFlexibleSubtopic(block, data = {}, targetContainer = null) {
       <div class="flex-subtopic-actions">
         <button class="small-action" type="button" data-add-nested-subtopic title="${isNestedSubtopic ? 'Adicionar no mesmo n\u00edvel' : 'Adicionar n\u00edvel abaixo'}">${isNestedSubtopic ? '+ Mesmo n\u00edvel' : '+ N\u00edvel abaixo'}</button>
         <button class="small-action" type="button" data-add-subtopic-observation title="Adicionar observa\u00e7\u00e3o">+ Observa\u00e7\u00e3o</button>
+        <button class="small-action" type="button" data-add-white-subtopic-observation title="Adicionar observa\u00e7\u00e3o branca">+ Obs. branca</button>
+        <button class="small-action" type="button" data-add-subtopic-table title="Adicionar tabela">+ Tabela</button>
         <button class="subtopic-drag-handle" type="button" draggable="true" title="Arrastar subt\u00f3pico" aria-label="Arrastar subt\u00f3pico">\u22ee\u22ee</button>
         <button class="danger-action" type="button" data-remove-subtopic title="Remover subt\u00f3pico">x</button>
       </div>
     </div>
     <div class="topic-observations" data-subtopic-observations></div>
+    <div class="embedded-topic-tables" data-subtopic-tables></div>
     <div class="flex-subtopics" data-flex-subtopics></div>
   `;
   const observations = Array.isArray(data.observacoes) ? data.observacoes : [];
   observations.forEach((observation) => addTopicObservation(subtopic.querySelector('[data-subtopic-observations]'), observation));
+  const tablesContainer = subtopic.querySelector('[data-subtopic-tables]');
+  (Array.isArray(data.tabelas) ? data.tabelas : []).forEach((table) => addEmbeddedTopicTable(tablesContainer, table));
   const nestedContainer = subtopic.querySelector('[data-flex-subtopics]');
   (Array.isArray(data.subtopicos) ? data.subtopicos : []).forEach((nested) => {
     addFlexibleSubtopic(block, nested, nestedContainer);
@@ -809,6 +841,10 @@ function addFlexibleSubtopic(block, data = {}, targetContainer = null) {
   subtopic.querySelector('[data-add-subtopic-observation]').addEventListener('click', () => {
     addTopicObservation(subtopic.querySelector('[data-subtopic-observations]'), '');
   });
+  subtopic.querySelector('[data-add-white-subtopic-observation]').addEventListener('click', () => {
+    addTopicObservation(subtopic.querySelector('[data-subtopic-observations]'), { texto: '', tipo: 'branca' });
+  });
+  subtopic.querySelector('[data-add-subtopic-table]').addEventListener('click', () => addEmbeddedTopicTable(tablesContainer, {}));
   subtopic.querySelector('[data-remove-subtopic]').addEventListener('click', () => {
     subtopic.remove();
     renumberFlexibleTopics();
@@ -816,6 +852,24 @@ function addFlexibleSubtopic(block, data = {}, targetContainer = null) {
   container.appendChild(subtopic);
   renumberFlexibleTopics();
   return subtopic;
+}
+
+function addEmbeddedTopicTable(container, data = {}) {
+  if (!container) return null;
+  const wrapper = document.createElement('div');
+  wrapper.className = 'embedded-topic-table';
+  wrapper.dataset.embeddedTableId = data.id || createFlexibleId('tabela');
+  wrapper.innerHTML = `
+    <div class="embedded-topic-table-heading">
+      <strong>Tabela</strong>
+      <button class="danger-action" type="button" data-remove-embedded-table title="Remover tabela">x</button>
+    </div>
+    <div data-embedded-table-editor></div>
+  `;
+  renderCustomTableEditor(wrapper.querySelector('[data-embedded-table-editor]'), normalizeFlexibleTable(data));
+  wrapper.querySelector('[data-remove-embedded-table]').addEventListener('click', () => wrapper.remove());
+  container.appendChild(wrapper);
+  return wrapper;
 }
 
 function addFlexibleListItem(body, value = {}) {
@@ -892,11 +946,14 @@ function normalizeFlexibleTable(data = {}) {
 }
 
 function renderFlexibleTableEditor(block, data) {
+  renderCustomTableEditor(block.querySelector('.flexible-block-body'), data);
+}
+
+function renderCustomTableEditor(body, data) {
   data = {
     ...data,
     colunas: normalizeFlexibleTableColumns(data.colunas)
   };
-  const body = block.querySelector('.flexible-block-body');
   body.innerHTML = `
     <div class="custom-table-editor">
       <div class="custom-table-actions">
@@ -960,28 +1017,28 @@ function renderFlexibleTableEditor(block, data) {
   applyCustomTableColumnLayout(table);
 
   body.querySelector('[data-custom-table-action="column"]').addEventListener('click', () => {
-    const current = readFlexibleTable(block, { keepEmptyRows: true });
+    const current = readFlexibleTable(body, { keepEmptyRows: true });
     const averageWidth = current.colunas.reduce((sum, column) => sum + column.largura, 0) / current.colunas.length;
     current.colunas.push({
       id: createFlexibleId('coluna'),
       nome: `Coluna ${current.colunas.length + 1}`,
       largura: averageWidth
     });
-    renderFlexibleTableEditor(block, current);
+    renderCustomTableEditor(body, current);
   });
   body.querySelector('[data-custom-table-action="row"]').addEventListener('click', () => {
-    const current = readFlexibleTable(block, { keepEmptyRows: true });
+    const current = readFlexibleTable(body, { keepEmptyRows: true });
     current.linhas.push({ valores: {} });
-    renderFlexibleTableEditor(block, current);
+    renderCustomTableEditor(body, current);
   });
   body.querySelectorAll('[data-remove-custom-column]').forEach((button) => {
     button.addEventListener('click', () => {
-      const current = readFlexibleTable(block, { keepEmptyRows: true });
+      const current = readFlexibleTable(body, { keepEmptyRows: true });
       if (current.colunas.length <= 1) return;
       const columnId = button.dataset.removeCustomColumn;
       current.colunas = current.colunas.filter((column) => column.id !== columnId);
       current.linhas.forEach((row) => delete row.valores[columnId]);
-      renderFlexibleTableEditor(block, current);
+      renderCustomTableEditor(body, current);
     });
   });
   bindCustomTableColumnResize(table);
@@ -1147,6 +1204,7 @@ function collectFlexibleBlock(block) {
   };
   if (type === 'texto') {
     result.observacoes = collectTopicObservations(block.querySelector('[data-topic-observations]'));
+    result.tabelas = collectEmbeddedTopicTables(block.querySelector('[data-topic-tables]'));
     result.subtopicos = collectFlexibleSubtopics(block.querySelector('.flexible-block-body > [data-flex-subtopics]'));
   } else if (type === 'lista') {
     result.linhas = Array.from(block.querySelectorAll('[data-flex-list] tr'))
@@ -1175,7 +1233,7 @@ function collectFlexibleBlocks() {
     .filter((block) => {
       if (block.tipo === 'quebra_pagina') return true;
       if (block.titulo) return true;
-      if (block.tipo === 'texto') return block.observacoes.length > 0 || block.subtopicos.length > 0;
+      if (block.tipo === 'texto') return block.observacoes.length > 0 || block.tabelas.length > 0 || block.subtopicos.length > 0;
       if (block.tipo === 'lista') return block.linhas.length > 0;
       if (block.tipo === 'preco') return true;
       return block.linhas.length > 0;
@@ -1184,9 +1242,23 @@ function collectFlexibleBlocks() {
 
 function collectTopicObservations(container) {
   if (!container) return [];
-  return Array.from(container.querySelectorAll(':scope > .topic-observation-row [data-topic-observation]'))
-    .map((input) => input.value.trim())
+  return Array.from(container.querySelectorAll(':scope > .topic-observation-row'))
+    .map((row) => {
+      const text = row.querySelector('[data-topic-observation]')?.value.trim() || '';
+      if (!text) return null;
+      return row.dataset.observationType === 'branca' ? { texto: text, tipo: 'branca' } : text;
+    })
     .filter(Boolean);
+}
+
+function collectEmbeddedTopicTables(container) {
+  if (!container) return [];
+  return Array.from(container.querySelectorAll(':scope > .embedded-topic-table'))
+    .map((wrapper) => ({
+      id: wrapper.dataset.embeddedTableId,
+      ...readFlexibleTable(wrapper)
+    }))
+    .filter((table) => table.colunas.length && table.linhas.length);
 }
 
 function collectFlexibleSubtopics(container) {
@@ -1200,10 +1272,11 @@ function collectFlexibleSubtopics(container) {
         id: subtopic.dataset.subtopicId,
         titulo: subtopic.querySelector(':scope > .flex-subtopic-heading [data-flex-subtopic-title]').value.trim(),
         observacoes: collectTopicObservations(subtopic.querySelector(':scope > [data-subtopic-observations]')),
+        tabelas: collectEmbeddedTopicTables(subtopic.querySelector(':scope > [data-subtopic-tables]')),
         subtopicos: collectFlexibleSubtopics(nestedContainer)
       };
     })
-    .filter((subtopic) => subtopic.titulo || subtopic.observacoes.length || subtopic.subtopicos.length);
+    .filter((subtopic) => subtopic.titulo || subtopic.observacoes.length || subtopic.tabelas.length || subtopic.subtopicos.length);
 }
 
 function updateFlexibleEmptyState() {

@@ -383,6 +383,14 @@ const FIXED_DOCUMENT_SECTIONS = [
 
 const ACTIVE_FIXED_DOCUMENT_SECTIONS = FIXED_DOCUMENT_SECTIONS.filter((section) => !section.removed);
 const SIGNATURE_SPACER = '<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/></w:pPr></w:p>';
+const TOPIC_DIVIDER_LINE = `<w:p>
+  <w:pPr>
+    <w:ind w:left="390" w:right="817"/>
+    <w:spacing w:before="0" w:after="70" w:line="20" w:lineRule="exact"/>
+    <w:pBdr><w:bottom w:val="single" w:sz="4" w:space="0" w:color="000000"/></w:pBdr>
+  </w:pPr>
+  <w:r><w:rPr><w:sz w:val="2"/><w:szCs w:val="2"/></w:rPr><w:t xml:space="preserve"> </w:t></w:r>
+</w:p>`;
 
 function rebuildOrderedDocumentSections(documentXml, blocks, requestedOrder, sectionLineXml, excludedSections = []) {
   const extracted = extractFixedDocumentSections(documentXml);
@@ -415,9 +423,12 @@ function rebuildOrderedDocumentSections(documentXml, blocks, requestedOrder, sec
 
   const blocksById = new Map(blockEntries.map((entry) => [entry.id, entry.block]));
   let sectionNumber = 1;
-  const orderedXml = order.map((sectionId) => {
+  const orderedXml = order.map((sectionId, orderIndex) => {
     if (extracted.sections[sectionId]) {
-      const rendered = numberFixedDocumentSection(extracted.sections[sectionId], sectionId, sectionNumber);
+      let rendered = numberFixedDocumentSection(extracted.sections[sectionId], sectionId, sectionNumber);
+      if (sectionId === 'dados_comerciais' && String(order[orderIndex + 1] || '').startsWith('flex:')) {
+        rendered = removeOneTrailingEmptyParagraph(rendered);
+      }
       sectionNumber += 1;
       return rendered;
     }
@@ -426,16 +437,38 @@ function rebuildOrderedDocumentSections(documentXml, blocks, requestedOrder, sec
     if (block.tipo === 'quebra_pagina') {
       return '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
     }
-    const rendered = renderAdditionalBlock(
+    const previousSectionId = order[orderIndex - 1];
+    const previousBlock = blocksById.get(previousSectionId);
+    let rendered = renderAdditionalBlock(
       block,
       sectionNumber,
-      cloneSectionLineParagraph(sectionLineXml, sectionNumber)
+      cloneSectionLineParagraph(sectionLineXml, sectionNumber),
+      { compactTopSpacing: previousSectionId === 'dados_comerciais' || previousBlock?.tipo === 'preco' }
     );
+    if (block.tipo === 'lista' && order[orderIndex + 1]) {
+      rendered = removeOneTrailingEmptyParagraph(rendered);
+    }
     sectionNumber += 1;
     return rendered;
   }).join('');
 
   return `${extracted.prefix}${orderedXml}${SIGNATURE_SPACER}${extracted.suffix}`;
+}
+
+function removeOneTrailingEmptyParagraph(xml) {
+  const result = String(xml || '').trimEnd();
+  if (result.endsWith('<w:p/>')) return result.slice(0, -'<w:p/>'.length).trimEnd();
+  const paragraphStart = Math.max(result.lastIndexOf('<w:p>'), result.lastIndexOf('<w:p '));
+  if (paragraphStart < 0) return xml;
+  const paragraphEnd = result.indexOf('</w:p>', paragraphStart);
+  if (paragraphEnd < 0 || paragraphEnd + '</w:p>'.length !== result.length) return xml;
+  const paragraph = result.slice(paragraphStart, paragraphEnd + '</w:p>'.length);
+  const content = paragraph
+    .replace(/^<w:p(?:\s[^>]*)?>/, '')
+    .replace(/<w:pPr>[\s\S]*?<\/w:pPr>/, '')
+    .replace(/<\/w:p>$/, '')
+    .trim();
+  return content ? xml : result.slice(0, paragraphStart).trimEnd();
 }
 
 function extractFixedDocumentSections(documentXml) {
@@ -466,12 +499,24 @@ function extractFixedDocumentSections(documentXml) {
 function numberFixedDocumentSection(sectionXml, sectionId, number) {
   const definition = FIXED_DOCUMENT_SECTIONS.find((section) => section.id === sectionId);
   let numberedXml = prefixParagraphMarker(sectionXml, definition.marker, `${number}.  `);
+  numberedXml = replaceSectionDividerAfterMarker(numberedXml, definition.marker);
   if (sectionId === 'escopo') {
     ['Descri\u00e7\u00e3o dos Servi\u00e7os', 'Equipe T\u00e9cnica', 'Local e Data dos Servi\u00e7os'].forEach((marker, index) => {
       numberedXml = prefixParagraphMarker(numberedXml, marker, `${number}.${index + 1}  `);
     });
   }
   return numberedXml;
+}
+
+function replaceSectionDividerAfterMarker(sectionXml, marker) {
+  const markerIndex = sectionXml.indexOf(marker);
+  if (markerIndex < 0) return sectionXml;
+  const headingEnd = sectionXml.indexOf('</w:p>', markerIndex);
+  if (headingEnd < 0) return sectionXml;
+  const dividerStart = sectionXml.indexOf('<w:p', headingEnd + '</w:p>'.length);
+  const dividerEnd = dividerStart >= 0 ? sectionXml.indexOf('</w:p>', dividerStart) : -1;
+  if (dividerStart < 0 || dividerEnd < 0) return sectionXml;
+  return `${sectionXml.slice(0, dividerStart)}${TOPIC_DIVIDER_LINE}${sectionXml.slice(dividerEnd + '</w:p>'.length)}`;
 }
 
 function prefixParagraphMarker(sectionXml, marker, prefix) {
@@ -556,35 +601,39 @@ function renderAdditionalBlocks(blocks, sectionLineXml = '') {
   }).join('');
 }
 
-function renderAdditionalBlock(block, sectionNumber, sectionLine) {
+function renderAdditionalBlock(block, sectionNumber, sectionLine, options = {}) {
   if (block.tipo === 'texto') {
-    return renderStructuredTopic(block, sectionNumber, sectionLine);
+    return renderStructuredTopic(block, sectionNumber, sectionLine, options);
   }
   if (block.tipo === 'lista') {
-    return `${renderNumberedTopicHeading(sectionNumber, 'DOCUMENTA\u00c7\u00c3O', sectionLine)}${renderDocumentList(block, sectionNumber)}`;
+    return `${renderNumberedTopicHeading(sectionNumber, 'DOCUMENTA\u00c7\u00c3O', sectionLine, options)}${renderDocumentList(block, sectionNumber)}`;
   }
   if (block.tipo === 'preco') {
     const title = stripAutomaticNumber(block.titulo ?? 'PRE\u00c7O');
-    const heading = title ? renderNumberedTopicHeading(sectionNumber, title, sectionLine) : '';
+    const heading = title ? renderNumberedTopicHeading(sectionNumber, title, sectionLine, options) : '';
     return `${heading}${renderAdditionalPrice(block, sectionNumber)}`;
   }
   if (block.tipo === 'tabela') {
     const title = stripAutomaticNumber(block.titulo || '') || 'TABELA SEM NOME';
-    return `${renderNumberedTopicHeading(sectionNumber, title, sectionLine)}${renderCustomTable(block, sectionNumber)}`;
+    return `${renderNumberedTopicHeading(sectionNumber, title, sectionLine, options)}${renderCustomTable(block, sectionNumber)}`;
   }
   return '';
 }
 
-function renderStructuredTopic(block, number, sectionLineXml = '') {
+function renderStructuredTopic(block, number, sectionLineXml = '', options = {}) {
   const title = stripAutomaticNumber(block.titulo || '') || 'T\u00d3PICO SEM NOME';
   const observations = Array.isArray(block.observacoes) && block.observacoes.length
     ? block.observacoes
     : (block.conteudo ? String(block.conteudo).split(/\r?\n/) : []);
   const subtopics = Array.isArray(block.subtopicos) ? block.subtopicos : [];
-  const heading = renderNumberedTopicHeading(number, title, sectionLineXml);
+  const heading = renderNumberedTopicHeading(number, title, sectionLineXml, options);
   const topicObservations = observations.map((observation) => renderTopicObservation(observation)).join('');
+  const topicTables = renderEmbeddedTopicTables(block.tabelas, Number(number) * 1000);
   const subtopicsXml = renderStructuredSubtopics(subtopics, String(number));
-  return `${heading}${topicObservations}${subtopicsXml}`;
+  const tablesBeforeSubtopics = subtopics.length
+    ? removeOneTrailingEmptyParagraph(topicTables)
+    : topicTables;
+  return `${heading}${topicObservations}${tablesBeforeSubtopics}${subtopicsXml}`;
 }
 
 function flattenSubtopicDescendants(subtopics = []) {
@@ -595,60 +644,85 @@ function flattenSubtopicDescendants(subtopics = []) {
 }
 
 function renderStructuredSubtopics(subtopics, parentNumber) {
-  return (Array.isArray(subtopics) ? subtopics : []).map((subtopic, index) => {
+  const sourceSubtopics = Array.isArray(subtopics) ? subtopics : [];
+  return sourceSubtopics.map((subtopic, index) => {
     const number = `${parentNumber}.${index + 1}`;
     const title = stripAutomaticNumber(subtopic?.titulo || '') || 'Subt\u00f3pico sem nome';
     const observations = Array.isArray(subtopic?.observacoes) ? subtopic.observacoes : [];
+    const tableSeed = (Number(parentNumber) * 1000) + ((index + 1) * 100);
+    const tablesXml = renderEmbeddedTopicTables(subtopic?.tabelas, tableSeed);
     const descendants = flattenSubtopicDescendants(subtopic?.subtopicos);
     const descendantXml = descendants.map((descendant, descendantIndex) => {
       const descendantNumber = `${number}.${descendantIndex + 1}`;
       const descendantTitle = stripAutomaticNumber(descendant?.titulo || '') || 'Subt\u00f3pico sem nome';
       const descendantObservations = Array.isArray(descendant?.observacoes) ? descendant.observacoes : [];
-      return `${renderSubtopicHeading(descendantNumber, descendantTitle, 2)}${descendantObservations.map((observation) => renderTopicObservation(observation, 1)).join('')}`;
+      const descendantTables = renderEmbeddedTopicTables(descendant?.tabelas, tableSeed + descendantIndex + 1);
+      const renderedDescendant = `${renderSubtopicHeading(descendantNumber, descendantTitle, 2)}${descendantObservations.map((observation) => renderTopicObservation(observation, 1)).join('')}${descendantTables}`;
+      return descendantIndex < descendants.length - 1
+        ? removeOneTrailingEmptyParagraph(renderedDescendant)
+        : renderedDescendant;
     }).join('');
-    return `${renderSubtopicHeading(number, title, 1)}${observations.map((observation) => renderTopicObservation(observation)).join('')}${descendantXml}`;
+    const tablesBeforeDescendants = descendants.length
+      ? removeOneTrailingEmptyParagraph(tablesXml)
+      : tablesXml;
+    const renderedSubtopic = `${renderSubtopicHeading(number, title, 1)}${observations.map((observation) => renderTopicObservation(observation)).join('')}${tablesBeforeDescendants}${descendantXml}`;
+    return index < sourceSubtopics.length - 1
+      ? removeOneTrailingEmptyParagraph(renderedSubtopic)
+      : renderedSubtopic;
   }).join('');
 }
 
-function renderNumberedTopicHeading(number, title, sectionLineXml = '') {
-  const line = sectionLineXml || `<w:p>
-    <w:pPr>
-      <w:ind w:left="390" w:right="817"/><w:spacing w:before="0" w:after="70" w:line="20" w:lineRule="exact"/>
-      <w:pBdr><w:bottom w:val="single" w:sz="4" w:space="0" w:color="002060"/></w:pBdr>
-    </w:pPr>
-    <w:r><w:rPr><w:sz w:val="2"/><w:szCs w:val="2"/></w:rPr><w:t xml:space="preserve"> </w:t></w:r>
-  </w:p>`;
+function renderEmbeddedTopicTables(tables = [], seedBase = 0) {
+  return (Array.isArray(tables) ? tables : [])
+    .map((table, index) => renderCustomTable(table, seedBase + index + 1))
+    .join('');
+}
+
+function renderNumberedTopicHeading(number, title, sectionLineXml = '', options = {}) {
+  const topSpacing = options.compactTopSpacing ? 0 : 240;
   return `<w:p>
     <w:pPr>
       <w:pStyle w:val="PargrafodaLista"/><w:keepNext/>
-      <w:ind w:left="425" w:right="799"/><w:spacing w:before="240" w:after="0"/>
+      <w:ind w:left="652" w:right="799" w:hanging="227"/><w:spacing w:before="${topSpacing}" w:after="0"/>
       <w:contextualSpacing w:val="0"/>
     </w:pPr>
-    <w:r><w:rPr><w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/><w:b/><w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr><w:t xml:space="preserve">${number}.  ${escapeXml(String(title).toUpperCase())}</w:t></w:r>
+    <w:r><w:rPr><w:rFonts w:ascii="Calibri" w:eastAsia="Times New Roman" w:hAnsi="Calibri" w:cs="Calibri"/><w:b/><w:color w:val="000000"/><w:sz w:val="16"/><w:szCs w:val="16"/><w:lang w:eastAsia="pt-BR"/></w:rPr><w:t xml:space="preserve">${number}.  ${escapeXml(String(title).toUpperCase())}</w:t></w:r>
   </w:p>
-  ${line}`;
+  ${TOPIC_DIVIDER_LINE}`;
 }
 
 function renderSubtopicHeading(number, title, depth = 1) {
   const leftIndent = 964 + ((Math.max(1, depth) - 1) * 280);
   return `<w:p>
-    <w:pPr><w:pStyle w:val="PargrafodaLista"/><w:keepNext/><w:ind w:left="${leftIndent}" w:right="799" w:hanging="284"/></w:pPr>
-    <w:r><w:rPr><w:rFonts w:ascii="Calibri" w:eastAsia="Times New Roman" w:hAnsi="Calibri" w:cs="Calibri"/><w:b/><w:color w:val="000000"/><w:sz w:val="16"/><w:szCs w:val="16"/><w:lang w:eastAsia="pt-BR"/></w:rPr><w:t xml:space="preserve">${escapeXml(number)}  </w:t></w:r>
-    <w:r><w:rPr><w:rFonts w:ascii="Calibri" w:eastAsia="Times New Roman" w:hAnsi="Calibri" w:cs="Calibri"/><w:color w:val="000000"/><w:sz w:val="16"/><w:szCs w:val="16"/><w:lang w:eastAsia="pt-BR"/></w:rPr><w:t>${escapeXml(title)}</w:t></w:r>
+    <w:pPr><w:pStyle w:val="PargrafodaLista"/><w:ind w:left="${leftIndent}" w:right="799" w:hanging="284"/></w:pPr>
+    <w:r><w:rPr><w:rFonts w:ascii="Calibri" w:eastAsia="Times New Roman" w:hAnsi="Calibri" w:cs="Calibri"/><w:b/><w:color w:val="000000"/><w:sz w:val="16"/><w:szCs w:val="16"/><w:lang w:eastAsia="pt-BR"/></w:rPr><w:t xml:space="preserve">${escapeXml(number)} </w:t></w:r>
+    <w:r><w:rPr><w:rFonts w:ascii="Calibri" w:eastAsia="Times New Roman" w:hAnsi="Calibri" w:cs="Calibri"/><w:b/><w:color w:val="000000"/><w:sz w:val="16"/><w:szCs w:val="16"/><w:lang w:eastAsia="pt-BR"/></w:rPr><w:t>${escapeXml(title)}</w:t></w:r>
   </w:p>`;
 }
 
 function renderTopicObservation(value, nestedDepth = 0) {
   const text = typeof value === 'string' ? value : value?.texto || '';
   if (!String(text).trim()) return '';
-  const leftIndent = 1191 + Math.max(0, nestedDepth) * 280;
+  const isWhiteBullet = typeof value === 'object' && value?.tipo === 'branca';
+  const leftIndent = 1191 + Math.max(0, nestedDepth) * 280 + (isWhiteBullet ? 280 : 0);
+  const runProperties = '<w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:eastAsia="Times New Roman" w:cs="Calibri"/><w:color w:val="000000"/><w:sz w:val="16"/><w:szCs w:val="16"/><w:lang w:eastAsia="pt-BR"/></w:rPr>';
+  if (isWhiteBullet) {
+    return `<w:p>
+      <w:pPr>
+        <w:pStyle w:val="PargrafodaLista"/>
+        <w:ind w:left="${leftIndent}" w:right="799" w:hanging="227"/>
+      </w:pPr>
+      <w:r>${runProperties}<w:t xml:space="preserve">&#x25CB;  </w:t></w:r>
+      <w:r>${runProperties}<w:t xml:space="preserve">${escapeXml(String(text).trim())}</w:t></w:r>
+    </w:p>`;
+  }
   return `<w:p>
     <w:pPr>
       <w:pStyle w:val="PargrafodaLista"/>
       <w:numPr><w:ilvl w:val="1"/><w:numId w:val="1"/></w:numPr>
       <w:ind w:left="${leftIndent}" w:right="799" w:hanging="227"/>
     </w:pPr>
-    <w:r><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:eastAsia="Times New Roman" w:cs="Calibri"/><w:color w:val="000000"/><w:sz w:val="16"/><w:szCs w:val="16"/><w:lang w:eastAsia="pt-BR"/></w:rPr><w:t xml:space="preserve">${escapeXml(String(text).trim())}</w:t></w:r>
+    <w:r>${runProperties}<w:t xml:space="preserve">${escapeXml(String(text).trim())}</w:t></w:r>
   </w:p>`;
 }
 
@@ -784,14 +858,15 @@ function renderRoundedHeaderRow(headings, widths, options = {}) {
   </w:tr>`;
 }
 
-function renderDocumentListRow(values, widths) {
+function renderDocumentListRow(values, widths, options = {}) {
+  const alignments = Array.isArray(options.alignments) ? options.alignments : [];
   return `<w:tr><w:trPr><w:trHeight w:val="250" w:hRule="atLeast"/></w:trPr>${values.map((value, index) => `<w:tc>
     <w:tcPr>
       <w:tcW w:w="${widths[index]}" w:type="dxa"/>
       <w:tcBorders><w:bottom w:val="single" w:sz="4" w:color="B7B7B7"/></w:tcBorders>
       <w:vAlign w:val="center"/>
     </w:tcPr>
-    <w:p><w:pPr><w:spacing w:before="0" w:after="0"/><w:jc w:val="center"/></w:pPr>
+    <w:p><w:pPr><w:spacing w:before="0" w:after="0"/><w:jc w:val="${alignments[index] === 'left' ? 'left' : 'center'}"/></w:pPr>
       <w:r><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:eastAsia="Calibri"/><w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr><w:t xml:space="preserve">${escapeXml(value)}</w:t></w:r>
     </w:p>
   </w:tc>`).join('')}</w:tr>`;
@@ -876,7 +951,7 @@ function renderAdditionalPrice(block, sectionNumber) {
     renderAdditionalPriceCell(renderAdditionalPriceLabelValue(rightLabel, rightValue), 5122, { gridSpan: 2, borders: PRICE_NO_BORDERS })
   ])).join('');
   const summaryTable = `${renderAdditionalPriceTableOpen(ADDITIONAL_PRICE_SUMMARY_COLUMNS)}${grandTotal}${termRows}</w:tbl>`;
-  const middleGap = '<w:p><w:pPr><w:spacing w:before="150" w:after="150" w:line="120" w:lineRule="exact"/><w:rPr><w:sz w:val="4"/><w:szCs w:val="4"/></w:rPr></w:pPr></w:p>';
+  const middleGap = '<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="120" w:lineRule="exact"/><w:rPr><w:sz w:val="4"/><w:szCs w:val="4"/></w:rPr></w:pPr></w:p>';
   const bottomGap = '<w:p><w:pPr><w:spacing w:before="20" w:after="20" w:line="40" w:lineRule="exact"/><w:rPr><w:sz w:val="2"/><w:szCs w:val="2"/></w:rPr></w:pPr></w:p>';
   return `${itemsTable}${middleGap}${summaryTable}${bottomGap}`;
 }
@@ -967,6 +1042,9 @@ function renderCustomTable(block, sectionNumber = 0) {
   const rows = Array.isArray(block.linhas) ? block.linhas.filter(Boolean) : [];
   const tableWidth = 10245;
   const widths = calculateCustomTableWidths(columns, tableWidth);
+  const alignments = columns.map((column) => (
+    isDescriptionTableColumn(column) ? 'left' : 'center'
+  ));
   const numberSeed = Math.max(0, Math.trunc(Number(sectionNumber) || 0));
   const headerXml = renderRoundedHeaderRow(
     columns.map((column) => column.nome.toUpperCase()),
@@ -980,7 +1058,11 @@ function renderCustomTable(block, sectionNumber = 0) {
   );
   const rowsXml = rows.map((row) => {
     const values = row.valores && typeof row.valores === 'object' ? row.valores : row;
-    return renderDocumentListRow(columns.map((column) => values?.[column.id] ?? ''), widths);
+    return renderDocumentListRow(
+      columns.map((column) => values?.[column.id] ?? ''),
+      widths,
+      { alignments }
+    );
   }).join('');
 
   return `<w:tbl>
@@ -998,6 +1080,14 @@ function renderCustomTable(block, sectionNumber = 0) {
     <w:tblGrid>${widths.map((width) => `<w:gridCol w:w="${width}"/>`).join('')}</w:tblGrid>
     ${headerXml}${rowsXml}
   </w:tbl><w:p><w:pPr><w:spacing w:after="80"/></w:pPr></w:p>`;
+}
+
+function isDescriptionTableColumn(column = {}) {
+  const identifier = `${column.id || ''} ${column.nome || ''}`
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase();
+  return identifier.includes('DESCRICAO');
 }
 
 function escapeXml(value) {

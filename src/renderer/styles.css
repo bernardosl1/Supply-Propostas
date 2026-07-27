@@ -585,6 +585,7 @@ h2 {
 .preview-subsection-title {
   margin: 14px 0 6px;
   font-size: 13px;
+  font-weight: 400;
 }
 
 .preview-nested-subsection-title {

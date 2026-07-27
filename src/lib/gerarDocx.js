@@ -693,10 +693,11 @@ function renderNumberedTopicHeading(number, title, sectionLineXml = '', options 
 
 function renderSubtopicHeading(number, title, depth = 1) {
   const leftIndent = 964 + ((Math.max(1, depth) - 1) * 280);
+  const runProperties = '<w:rPr><w:rFonts w:ascii="Calibri" w:eastAsia="Times New Roman" w:hAnsi="Calibri" w:cs="Calibri"/><w:b w:val="0"/><w:color w:val="000000"/><w:sz w:val="16"/><w:szCs w:val="16"/><w:lang w:eastAsia="pt-BR"/></w:rPr>';
   return `<w:p>
     <w:pPr><w:pStyle w:val="PargrafodaLista"/><w:ind w:left="${leftIndent}" w:right="799" w:hanging="284"/></w:pPr>
-    <w:r><w:rPr><w:rFonts w:ascii="Calibri" w:eastAsia="Times New Roman" w:hAnsi="Calibri" w:cs="Calibri"/><w:b/><w:color w:val="000000"/><w:sz w:val="16"/><w:szCs w:val="16"/><w:lang w:eastAsia="pt-BR"/></w:rPr><w:t xml:space="preserve">${escapeXml(number)} </w:t></w:r>
-    <w:r><w:rPr><w:rFonts w:ascii="Calibri" w:eastAsia="Times New Roman" w:hAnsi="Calibri" w:cs="Calibri"/><w:b/><w:color w:val="000000"/><w:sz w:val="16"/><w:szCs w:val="16"/><w:lang w:eastAsia="pt-BR"/></w:rPr><w:t>${escapeXml(title)}</w:t></w:r>
+    <w:r>${runProperties}<w:t xml:space="preserve">${escapeXml(number)} </w:t></w:r>
+    <w:r>${runProperties}<w:t>${escapeXml(title)}</w:t></w:r>
   </w:p>`;
 }
 
@@ -705,7 +706,7 @@ function renderTopicObservation(value, nestedDepth = 0) {
   if (!String(text).trim()) return '';
   const isWhiteBullet = typeof value === 'object' && value?.tipo === 'branca';
   const leftIndent = 1191 + Math.max(0, nestedDepth) * 280 + (isWhiteBullet ? 280 : 0);
-  const runProperties = '<w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:eastAsia="Times New Roman" w:cs="Calibri"/><w:color w:val="000000"/><w:sz w:val="16"/><w:szCs w:val="16"/><w:lang w:eastAsia="pt-BR"/></w:rPr>';
+  const runProperties = '<w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:eastAsia="Times New Roman" w:cs="Calibri"/><w:b w:val="0"/><w:color w:val="000000"/><w:sz w:val="16"/><w:szCs w:val="16"/><w:lang w:eastAsia="pt-BR"/></w:rPr>';
   if (isWhiteBullet) {
     return `<w:p>
       <w:pPr>

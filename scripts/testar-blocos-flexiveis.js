@@ -706,6 +706,7 @@ for (const test of tests) {
       const topicSection = xml.slice(xml.lastIndexOf('<w:p>', topicIndex), xml.indexOf('Etapas do servi\u00e7o'));
       assert(topicSection.includes('w:ascii="Calibri"'), 'Fonte do topico adicional fora do padrao');
       assert(topicSection.includes('<w:sz w:val="16"/>'), 'Tamanho padr\u00e3o do t\u00f3pico ausente');
+      assert(topicSection.includes('<w:b/>'), 'T\u00f3pico principal perdeu o negrito');
       assert(topicSection.includes('<w:ind w:left="390" w:right="817"/>'), 'Comprimento ou posi\u00e7\u00e3o da linha do t\u00f3pico incorreto');
       assert(topicSection.includes('<w:bottom w:val="single" w:sz="4" w:space="0" w:color="000000"/>'), 'Linha preta simples do t\u00f3pico ausente');
       assert(!topicSection.includes('<mc:AlternateContent>'), 'Linha flutuante azul ainda presente no t\u00f3pico');
@@ -721,8 +722,8 @@ for (const test of tests) {
       const subtopicNumberRunEnd = subtopicParagraph.indexOf('</w:r>');
       const subtopicNumberRun = subtopicParagraph.slice(0, subtopicNumberRunEnd);
       const subtopicTitleRun = subtopicParagraph.slice(subtopicNumberRunEnd);
-      assert(subtopicNumberRun.includes('<w:b/>'), 'Autonumera\u00e7\u00e3o do subt\u00f3pico adicional n\u00e3o est\u00e1 em negrito');
-      assert(subtopicTitleRun.includes('<w:b/>'), 'Texto do subtópico adicional sem negrito');
+      assert(subtopicNumberRun.includes('<w:b w:val="0"/>'), 'Autonumera\u00e7\u00e3o do subt\u00f3pico adicional ficou em negrito');
+      assert(subtopicTitleRun.includes('<w:b w:val="0"/>'), 'Texto do subtópico adicional ficou em negrito');
       assert((subtopicParagraph.match(/Etapas do servi\u00e7o/g) || []).length === 1, 'Texto do subt\u00f3pico adicional foi duplicado');
       const nestedSubtopicIndex = xml.indexOf('Detalhamento da etapa');
       const nestedSubtopicStart = Math.max(
@@ -732,8 +733,8 @@ for (const test of tests) {
       const nestedSubtopicParagraph = xml.slice(nestedSubtopicStart, xml.indexOf('</w:p>', nestedSubtopicIndex));
       assert(nestedSubtopicParagraph.includes('<w:ind w:left="1244" w:right="799" w:hanging="284"/>'), 'Subt\u00f3pico aninhado n\u00e3o seguiu o recuo hier\u00e1rquico');
       const nestedNumberRunEnd = nestedSubtopicParagraph.indexOf('</w:r>');
-      assert(nestedSubtopicParagraph.slice(0, nestedNumberRunEnd).includes('<w:b/>'), 'Autonumera\u00e7\u00e3o do subt\u00f3pico aninhado n\u00e3o est\u00e1 em negrito');
-      assert(nestedSubtopicParagraph.slice(nestedNumberRunEnd).includes('<w:b/>'), 'Texto do subtópico aninhado sem negrito');
+      assert(nestedSubtopicParagraph.slice(0, nestedNumberRunEnd).includes('<w:b w:val="0"/>'), 'Autonumera\u00e7\u00e3o do subt\u00f3pico aninhado ficou em negrito');
+      assert(nestedSubtopicParagraph.slice(nestedNumberRunEnd).includes('<w:b w:val="0"/>'), 'Texto do subtópico aninhado ficou em negrito');
       const observationIndex = xml.indexOf('Execu\u00e7\u00e3o em duas etapas.');
       const observationParagraphStart = Math.max(
         xml.lastIndexOf('<w:p>', observationIndex),
@@ -742,6 +743,7 @@ for (const test of tests) {
       const observationParagraph = xml.slice(observationParagraphStart, xml.indexOf('</w:p>', observationIndex));
       assert(observationParagraph.includes('<w:ind w:left="1191" w:right="799" w:hanging="227"/>'), 'Observa\u00e7\u00e3o adicional n\u00e3o segue o alinhamento do Escopo');
       assert(observationParagraph.includes('w:ascii="Calibri"'), 'Fonte da observa\u00e7\u00e3o adicional difere do padr\u00e3o do Escopo');
+      assert(observationParagraph.includes('<w:b w:val="0"/>'), 'Observa\u00e7\u00e3o adicional ficou em negrito');
       assert(!observationParagraph.includes('<w:spacing'), 'Espa\u00e7amento da observa\u00e7\u00e3o adicional difere do padr\u00e3o do Escopo');
       assert(observationParagraph.includes('w:right="799"'), 'Texto do t\u00f3pico adicional ultrapassa a margem direita');
       assert(!observationParagraph.includes('<w:keepNext/>'), 'Pagina\u00e7\u00e3o normal do t\u00f3pico adicional foi alterada');
@@ -802,8 +804,8 @@ for (const test of tests) {
         const paragraph = xml.slice(paragraphStart, xml.indexOf('</w:p>', titleIndex));
         const numberRunEnd = paragraph.indexOf('</w:r>');
         assert(paragraph.includes(`<w:ind w:left="${leftIndent}" w:right="799" w:hanging="284"/>`), `Recuo hier\u00e1rquico incorreto em ${title}`);
-        assert(paragraph.slice(0, numberRunEnd).includes('<w:b/>'), `Autonumera\u00e7\u00e3o sem negrito em ${title}`);
-        assert(paragraph.slice(numberRunEnd).includes('<w:b/>'), 'Texto do subtópico sem negrito');
+        assert(paragraph.slice(0, numberRunEnd).includes('<w:b w:val="0"/>'), `Autonumera\u00e7\u00e3o ficou em negrito em ${title}`);
+        assert(paragraph.slice(numberRunEnd).includes('<w:b w:val="0"/>'), 'Texto do subtópico ficou em negrito');
       });
       ['4.1.1 ', '4.1.2 ', '4.1.3 '].forEach((number) => {
         assert(xml.includes(number), `Numera\u00e7\u00e3o horizontal ausente: ${number.trim()}`);
@@ -830,8 +832,8 @@ for (const test of tests) {
         const numberRunEnd = paragraph.indexOf('</w:r>');
         assert(paragraph.includes('<w:ind w:left="964" w:right="799" w:hanging="284"/>'), `${title}: alinhamento diferente do Escopo`);
         assert(paragraph.includes('w:ascii="Calibri"'), `${title}: fonte diferente do Escopo`);
-        assert(paragraph.slice(0, numberRunEnd).includes('<w:b/>'), `${title}: autonumera\u00e7\u00e3o sem negrito`);
-        assert(paragraph.slice(numberRunEnd).includes('<w:b/>'), 'Texto do subtópico sem negrito');
+        assert(paragraph.slice(0, numberRunEnd).includes('<w:b w:val="0"/>'), `${title}: autonumera\u00e7\u00e3o ficou em negrito`);
+        assert(paragraph.slice(numberRunEnd).includes('<w:b w:val="0"/>'), 'Texto do subtópico ficou em negrito');
       });
       ['At\u00e9 10 dias ap\u00f3s o recebimento da PO.', 'Anexo ao final da proposta t\u00e9cnica.'].forEach((observation) => {
         const observationIndex = xml.indexOf(observation);
@@ -843,6 +845,7 @@ for (const test of tests) {
         assert(paragraph.includes('<w:ind w:left="1191" w:right="799" w:hanging="227"/>'), `${observation}: marcador fora do padr\u00e3o do Escopo`);
         assert(paragraph.includes('<w:numPr><w:ilvl w:val="1"/><w:numId w:val="1"/></w:numPr>'), `${observation}: marcador preto ausente`);
         assert(paragraph.includes('w:ascii="Calibri"'), `${observation}: fonte diferente do Escopo`);
+        assert(paragraph.includes('<w:b w:val="0"/>'), `${observation}: observa\u00e7\u00e3o ficou em negrito`);
       });
     }
 
@@ -856,6 +859,7 @@ for (const test of tests) {
       assert(paragraph.includes('<w:ind w:left="1471" w:right="799" w:hanging="227"/>'), 'Observacao branca sem recuo adicional');
       assert(!paragraph.includes('<w:numPr>'), 'Observacao branca recebeu marcador preto');
       assert(paragraph.includes('&#x25CB;'), 'Marcador circular branco ausente');
+      assert(paragraph.includes('<w:b w:val="0"/>'), 'Observacao branca ficou em negrito');
 
       [
         ['Observacao branca do subtopico.', 1471],

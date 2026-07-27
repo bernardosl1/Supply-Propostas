@@ -14,6 +14,7 @@ const {
   excluirModelo
 } = require('./src/lib/armazenamento');
 const { normalizarEstruturaModelo } = require('./src/lib/modeloProposta');
+const { resolverNumeroDocumento } = require('./src/lib/numeracaoProposta');
 const { getPropostasDir } = require('./src/lib/paths');
 const { importarDocx } = require('./src/lib/importarDocx');
 const { createOpenAiConfig } = require('./src/lib/openAiConfig');
@@ -501,10 +502,21 @@ app.whenReady().then(() => {
 
   ipcMain.handle('app:version', () => app.getVersion());
   ipcMain.handle('proposta:gerar-docx', async (_event, data) => {
-    const outputPath = gerarDocx(data, buildProposalPath(data));
+    const propostasLocais = listarPropostas();
+    const propostasCloud = await tryCloud(listarPropostasCloud, []);
+    const propostasExistentes = mesclarPropostas(propostasLocais, propostasCloud);
+    const dadosResolvidos = {
+      ...data,
+      numero_documento: resolverNumeroDocumento(
+        data.numero_documento,
+        propostasExistentes,
+        data._historico_id
+      )
+    };
+    const outputPath = gerarDocx(dadosResolvidos, buildProposalPath(dadosResolvidos));
     const payload = {
       id: data._historico_id,
-      data: sanitizeProposalData(data),
+      data: sanitizeProposalData(dadosResolvidos),
       docxPath: outputPath
     };
     const localProposta = salvarProposta(payload);
@@ -634,6 +646,16 @@ function sanitizeProposalData(data) {
   const clean = { ...data };
   delete clean._historico_id;
   return clean;
+}
+
+function mesclarPropostas(...listas) {
+  const propostas = new Map();
+  listas.flat().forEach((proposta) => {
+    if (!proposta) return;
+    const chave = proposta.id || `${proposta.numero_documento || proposta.data?.numero_documento || ''}:${proposta.createdAt || ''}`;
+    propostas.set(String(chave), proposta);
+  });
+  return Array.from(propostas.values());
 }
 
 async function tryCloud(operation, fallback) {

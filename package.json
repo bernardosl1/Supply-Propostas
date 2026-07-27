@@ -1,6 +1,6 @@
 {
   "name": "proposta-app",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "description": "Gerador local de propostas comerciais da Supply Marine.",
   "main": "main.js",
   "scripts": {
@@ -20,6 +20,7 @@
     "test:flexible-blocks": "node scripts/testar-blocos-flexiveis.js",
     "test:history": "node scripts/testar-historico.js",
     "test:models": "node scripts/testar-modelos.js",
+    "test:numbering": "node scripts/testar-numeracao-propostas.js",
     "pack": "electron-builder --dir",
     "dist": "electron-builder --win nsis",
     "dist:release": "node scripts/build-release.js",

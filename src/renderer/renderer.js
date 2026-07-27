@@ -1601,6 +1601,9 @@ async function handleSubmit(event) {
     const result = await window.supplyMarine.gerarDocx(data);
     state.lastOutputPath = result.outputPath;
     state.editingId = result.proposta?.id || state.editingId;
+    if (result.proposta?.numero_documento) {
+      form.elements.numero_documento.value = result.proposta.numero_documento;
+    }
     showResult('Proposta pronta', result.outputPath);
     await loadHistory();
   } catch (error) {
@@ -1918,6 +1921,7 @@ async function handleHistoryAction(action, id) {
 
 function loadProposalIntoForm(proposal, options = {}) {
   const data = proposal.data || {};
+  const sourceDocumentNumber = data.numero_documento || proposal.numero_documento || '';
   state.editingId = options.duplicate ? '' : proposal.id;
   form.reset();
   clearFlexibleBlocks();
@@ -1927,8 +1931,8 @@ function loadProposalIntoForm(proposal, options = {}) {
 
   fillFormFields({
     ...data,
-    numero_documento: options.duplicate && (data.numero_documento || proposal.numero_documento)
-      ? `${data.numero_documento || proposal.numero_documento}-COPIA`
+    numero_documento: options.duplicate
+      ? nextProposalRevision(sourceDocumentNumber, state.proposals)
       : data.numero_documento
   });
   const topics = Array.isArray(data.topicos_preco) && data.topicos_preco.length
@@ -1943,6 +1947,30 @@ function loadProposalIntoForm(proposal, options = {}) {
   recalculate();
   showView('form');
   window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function nextProposalRevision(number, proposals = []) {
+  const requested = splitProposalNumber(number);
+  if (!requested.base) return '';
+  const revisions = (Array.isArray(proposals) ? proposals : [])
+    .map((proposal) => splitProposalNumber(proposal.numero_documento || proposal.data?.numero_documento))
+    .filter((existing) => existing.normalizedBase === requested.normalizedBase)
+    .map((existing) => existing.revision || 0);
+  if (!revisions.length) return requested.withoutCopy;
+  const nextRevision = Math.max(...revisions) + 1;
+  return `${requested.base}-R${String(nextRevision).padStart(2, '0')}`;
+}
+
+function splitProposalNumber(value) {
+  const withoutCopy = String(value || '').trim().replace(/(?:-COPIA)+$/i, '').trim();
+  const match = withoutCopy.match(/^(.*?)(?:-R(\d+))?$/i);
+  const base = String(match?.[1] || withoutCopy).trim();
+  return {
+    base,
+    normalizedBase: base.toLocaleUpperCase('pt-BR'),
+    revision: match?.[2] ? Number.parseInt(match[2], 10) : null,
+    withoutCopy
+  };
 }
 
 function fillFormFields(data) {
